@@ -1,0 +1,54 @@
+{
+    IBClasses = (
+        {
+            ACTIONS = {
+                cancelSheet = id; 
+                changeSelection = id; 
+                connectSheet = id; 
+                disconnect = id; 
+                hideOptions = id; 
+                newServer = id; 
+                removeItem = id; 
+                selectNext = id; 
+                selectPrevious = id; 
+            }; 
+            CLASS = AppController; 
+            LANGUAGE = ObjC; 
+            OUTLETS = {
+                arrayController = NSArrayController; 
+                box = NSBox; 
+                cacheBitmaps = NSButton; 
+                colorDepth = NSPopUpButton; 
+                disclosure = NSButton; 
+                disconnectButton = NSButton; 
+                drawDesktop = NSButton; 
+                errorField = NSTextField; 
+                forwardAudio = NSPopUpButton; 
+                forwardDisks = NSButton; 
+                host = NSComboBox; 
+                mainWindow = NSWindow; 
+                newServerSheet = NSWindow; 
+                openButton = NSButton; 
+                port = NSTextField; 
+                progress = NSProgressIndicator; 
+                screenResolution = NSPopUpButton; 
+                serverPopup = NSPopUpButton; 
+                tabView = NSTabView; 
+                themes = NSButton; 
+                windowAnimation = NSButton; 
+                windowDrags = NSButton; 
+            }; 
+            SUPERCLASS = NSObject; 
+        }, 
+        {CLASS = FirstResponder; LANGUAGE = ObjC; SUPERCLASS = NSObject; }, 
+        {CLASS = RDCSplitView; LANGUAGE = ObjC; SUPERCLASS = NSSplitView; }, 
+        {
+            ACTIONS = {checkForUpdates = id; }; 
+            CLASS = SUUpdater; 
+            LANGUAGE = ObjC; 
+            SUPERCLASS = NSObject; 
+        }, 
+        {CLASS = TableViewButton; LANGUAGE = ObjC; SUPERCLASS = NSButtonCell; }
+    ); 
+    IBVersion = 1; 
+}

@@ -16,23 +16,27 @@
 */
 
 #import <Cocoa/Cocoa.h>
-#import "CRDShared.h"
+#import "miscellany.h"
+
+#define CELL_IMAGE_HEIGHT 36
+#define CELL_IMAGE_WIDTH  36
+
 
 @interface CRDServerCell : NSCell
 {
-	NSMutableAttributedString *label, *user, *host;
+	NSMutableAttributedString *label; // First line
+	NSMutableAttributedString *user;  // Second line
+	NSMutableAttributedString *host;  // Third line
 	NSImage *image;
 	BOOL highlighted;
 	CRDConnectionStatus status;
 	NSProgressIndicator *progressIndicator;
 	NSTimer *progressIndicatorTimer;
-	
-	BOOL abbreviatedSize;
 }
 
 - (void)setDisplayedText:(NSString *)displayName username:(NSString *)username address:(NSString *)address;
+
 - (void)setStatus:(CRDConnectionStatus)connStatus;
 - (CRDConnectionStatus)status;
-- (void)listStyleDidChange:(NSNotification *)notification;
 
 @end

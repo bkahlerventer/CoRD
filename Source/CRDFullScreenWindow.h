@@ -19,12 +19,11 @@
 
 @interface CRDFullScreenWindow : NSWindow
 {
-	BOOL hideMenu;
 }
 
-- (id)initWithScreen:(NSScreen *)screen;
+
 - (void)startFullScreen;
 - (void)prepareForExit;
 - (void)exitFullScreen;
-
+- (id)initWithScreen:(NSScreen *)screen;
 @end

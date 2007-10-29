@@ -20,10 +20,9 @@
 
 @interface CRDServersColumn : NSTableColumn
 {
+
+
 }
 
-@end
 
-@interface NSObject (CRDServersColumnDelegate)
-	- (id)tableColumn:(NSTableColumn *)column inTableView:(NSTableView *)tableView dataCellForRow:(int)row;
 @end

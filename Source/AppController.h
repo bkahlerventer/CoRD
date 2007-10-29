@@ -17,23 +17,25 @@
 
 #import <Cocoa/Cocoa.h>
 
-#import "CRDShared.h"
+#import "miscellany.h"
 
 @class CRDFullScreenWindow;
 @class CRDLabelCell;
 @class CRDServerList;
-@class CRDSession;
-@class CRDTabView;
+@class RDInstance;
 
 @interface AppController : NSObject
 {
 	// Inspector
 	IBOutlet NSWindow *gui_inspector;
-	IBOutlet NSTextField *gui_host, *gui_password;
+	IBOutlet NSTextField *gui_label, *gui_host, *gui_username, *gui_password, *gui_domain;
+    IBOutlet NSButton *gui_savePassword, *gui_consoleSession, *gui_forwardDisks,
+						*gui_cacheBitmaps, *gui_displayDragging, *gui_drawDesktop,
+						*gui_enableAnimations, *gui_enableThemes;
 
     IBOutlet NSPopUpButton *gui_screenResolution, *gui_colorCount;
 	IBOutlet NSBox *gui_performanceOptions;
-    CRDSession *inspectedServer;
+    RDInstance *inspectedServer;
 	
 	// Drawer
 	IBOutlet NSDrawer *gui_serversDrawer;
@@ -45,19 +47,18 @@
 	// Unified window
 	IBOutlet NSWindow *gui_unifiedWindow;
 	IBOutlet NSComboBox *gui_quickConnect;
-	IBOutlet CRDTabView *gui_tabView;
+	IBOutlet NSTabView *gui_tabView;
 	NSToolbar *gui_toolbar;
 	NSMutableDictionary *toolbarItems;
-	BOOL unifiedWindowSizeIsUserSet;
 
 	// Other display modes
 	CRDFullScreenWindow *gui_fullScreenWindow;
 	CRDDisplayMode displayMode;
-	BOOL isInFullScreenMode;
-	NSPoint windowCascadePoint; // xxx: this is bad
-	
+	CRDDisplayMode displayModeBeforeFullscreen;
+	NSPoint windowCascadePoint;
+	IBOutlet NSUserDefaultsController *userDefaultsController;
 	NSUserDefaults *userDefaults;
-	
+	RDInstance *instanceReconnectingForFullscreen;
 	
 	// Menu
 	IBOutlet NSMenu *gui_serversMenu;
@@ -66,57 +67,52 @@
 	NSMutableArray *connectedServers, *savedServers;
 	
 	// Support for server dragging
-	CRDSession *dumpedInstance;
+	RDInstance *dumpedInstance;
 	BOOL dumpedInstanceWasSelected;
 	
-	BOOL isTerminating, useMinimalServersList;
+	BOOL isTerminating;
 }
 
 // Actions
 - (IBAction)addNewSavedServer:(id)sender;
 - (IBAction)removeSelectedSavedServer:(id)sender;
-- (IBAction)connect:(id)sender;
-- (IBAction)disconnect:(id)sender;
-- (IBAction)performConnectOrDisconnect:(id)sender;
 - (IBAction)keepSelectedServer:(id)sender;
 - (IBAction)toggleInspector:(id)sender;
 - (IBAction)togglePerformanceDisclosure:(id)sender;
 - (IBAction)fieldEdited:(id)sender;
 - (IBAction)selectNext:(id)sender;
 - (IBAction)selectPrevious:(id)sender;
+- (IBAction)disconnect:(id)sender;
 - (IBAction)performStop:(id)sender;
 - (IBAction)stopConnection:(id)sender;
+- (IBAction)connect:(id)sender;
 - (IBAction)showOpen:(id)sender;
 - (IBAction)toggleDrawer:(id)sender;
+- (IBAction)startFullscreen:(id)sender;
+- (IBAction)endFullscreen:(id)sender;
 - (IBAction)performFullScreen:(id)sender;
 - (IBAction)performUnified:(id)sender;
+- (IBAction)startWindowed:(id)sender;
+- (IBAction)startUnified:(id)sender;
 - (IBAction)takeScreenCapture:(id)sender;
 - (IBAction)performQuickConnect:(id)sender;
 - (IBAction)helpForConnectionOptions:(id)sender;
 - (IBAction)performServerMenuItem:(id)sender;
-- (IBAction)performDisconnect:(id)sender;
-- (IBAction)saveSelectedServer:(id)sender;
-- (IBAction)sortSavedServersAlphabetically:(id)sender;
-- (IBAction)doNothing:(id)sender;
 
-// Other methods are in no particular order
+
+// Other methods, in no particular order
+- (void)validateControls;
 - (void)cellNeedsDisplay:(NSCell *)cell;
 
-- (void)connectInstance:(CRDSession *)inst;
-- (void)disconnectInstance:(CRDSession *)inst;
-- (void)cancelConnectingInstance:(CRDSession *)inst;
+- (id)tableColumn:(NSTableColumn *)column inTableView:(NSTableView *)tableView dataCellForRow:(int)row;
 
-- (CRDSession *)serverInstanceForRow:(int)row;
-- (CRDSession *)selectedServer;
-- (CRDSession *)viewedServer;
+- (void)connectInstance:(RDInstance *)inst;
+- (void)disconnectInstance:(RDInstance *)inst;
+- (void)cancelConnectingInstance:(RDInstance *)inst;
 
-- (void)startUnifiedWithAnimation:(BOOL)animate;
-- (void)endUnified;
-- (void)startWindowedWithAnimation:(BOOL)animate;
-- (void)endWindowed;
-- (void)startFullscreen;
-- (void)endFullscreen;
-
+- (RDInstance *)serverInstanceForRow:(int)row;
+- (RDInstance *)selectedServerInstance;
+- (RDInstance *)viewedServer;
 
 - (BOOL)mainWindowIsFocused;
 - (CRDDisplayMode)displayMode;
@@ -126,13 +122,9 @@
 - (void)holdSavedServer:(int)row;
 - (void)reinsertHeldSavedServer:(int)intoRow;
 
-
-
-@end
-
-@interface AppController (SharedResources)
 + (NSImage *)sharedDocumentIcon;
 + (NSString *)savedServersPath;
+
 @end
 
 

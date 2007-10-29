@@ -19,29 +19,26 @@
 #import <Cocoa/Cocoa.h>
 
 #import "rdesktop.h"
-#import "CRDShared.h"
+#import "miscellany.h"
 
 @class CRDServerCell;
-@class CRDSessionView;
+@class RDCView;
 
-@interface CRDSession : NSObject
+@interface RDInstance : NSObject
 {
 	// Represented rdesktop object
-	RDConnectionRef conn;
+	rdcConnection conn;
 
 	// User configurable RDP settings
 	NSString *label, *hostName, *username, *password, *domain;	
-	BOOL savePassword, forwardDisks, forwardPrinters, drawDesktop, windowDrags,
+	BOOL savePassword, forwardDisks, cacheBitmaps, drawDesktop, windowDrags,
 			windowAnimation, themes, consoleSession, fullscreen;
 	int startDisplay, forwardAudio, screenDepth, screenWidth, screenHeight, port;
 	NSMutableDictionary *otherAttributes;
 	
-	// Working between main thread and connection thread
-	BOOL connectionRunLoopFinished;
-	NSRunLoop *connectionRunLoop;
-	NSThread *connectionThread;
-	NSMachPort *inputEventPort;
-	NSMutableArray *inputEventStack;
+	// Allows disconnect to be called from any thread
+	BOOL inputLoopFinished;
+	NSRunLoop *inputRunLoop;
 
 	// General information about instance
 	BOOL temporary, modified, temporarilyFullscreen;
@@ -53,33 +50,30 @@
 	NSStringEncoding fileEncoding;
 	
 	// Clipboard
-	BOOL isClipboardOwner;
-	NSString *remoteClipboard;
-	int clipboardChangeCount;
+	NSString *remoteClipboardContents;
 
 	// UI elements
-	CRDSessionView *view;
+	RDCView *view;
 	NSScrollView *scrollEnclosure;
 	CRDServerCell *cellRepresentation;
+	NSTabViewItem *tabViewRepresentation;
 	NSWindow *window;
 }
 
-- (id)initWithPath:(NSString *)path;
+- (id)initWithRDPFile:(NSString *)path;
 
 // Working with rdesktop
 - (BOOL)connect;
 - (void)disconnect;
 - (void)disconnectAsync:(NSNumber *)block;
-- (void)sendInputOnConnectionThread:(uint32)time type:(uint16)type flags:(uint16)flags param1:(uint16)param1 param2:(uint16)param2;
-- (void)runConnectionRunLoop;
+- (void)sendInput:(uint16)type flags:(uint16)flags param1:(uint16)param1 param2:(uint16)param2;
+- (void)startInputRunLoop;
 
 // Clipboard
 - (void)announceNewClipboardData;
 - (void)setRemoteClipboard:(int)suggestedFormat;
 - (void)setLocalClipboard:(NSData *)data format:(int)format;
 - (void)requestRemoteClipboardData;
-- (void)gotNewRemoteClipboardData;
-- (void)informServerOfPasteboardType;
 
 // Working with the rest of CoRD
 - (void)cancelConnection;
@@ -94,25 +88,29 @@
 - (void)destroyWindow;
 
 // Working with the represented file
-- (void)setFilename:(NSString *)filename;
-- (BOOL)writeToFile:(NSString *)path atomically:(BOOL)atomicFlag updateFilenames:(BOOL)updateNamesFlag;
-- (void)flushChangesToFile;
+- (BOOL)readRDPFile:(NSString *)path;
+- (BOOL)writeRDPFile:(NSString *)path;
 
 
 // Accessors
-- (RDConnectionRef)conn;
+- (rdcConnection)conn;
 - (NSString *)label;
-- (CRDSessionView *)view;
-- (NSString *)filename;
-- (void)setFilename:(NSString *)path;
+- (RDCView *)view;
+- (NSString *)rdpFilename;
+- (void)setRdpFilename:(NSString *)path;
 - (BOOL)temporary;
 - (void)setTemporary:(BOOL)temp;
 - (CRDServerCell *)cellRepresentation;
+- (NSTabViewItem *)tabViewRepresentation;
 - (BOOL)modified;
 - (CRDConnectionStatus)status;
+- (void)setStatusAsNumber:(NSNumber *)status;
 - (NSWindow *)window;
 
-- (void)setHostName:(NSString *)newHost;
+- (void)setLabel:(NSString *)s;
+- (void)setHostName:(NSString *)s;
 - (void)setUsername:(NSString *)s;
 - (void)setPassword:(NSString *)pass;
+
+
 @end

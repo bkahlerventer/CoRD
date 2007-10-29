@@ -16,32 +16,22 @@
 */
 
 #import <Cocoa/Cocoa.h>
-#import <Carbon/Carbon.h>
-#import <OpenGL/gl.h>
-
 #import "rdesktop.h"
 
-@class CRDSession;
-@class CRDBitmap;
-@class CRDKeyboard;
+@class RDInstance;
+@class RDCBitmap;
+@class RDCKeyboard;
 
-@interface CRDSessionView : NSOpenGLView
+@interface RDCView : NSView
 {
-	CRDSession *controller;
-	
-	// OpenGL back buffer
-	CGContextRef rdBufferContext;
-	unsigned char *rdBufferBitmapData;
-	int rdBufferBitmapLength;
-	GLuint rdBufferTexture;
-	int rdBufferWidth, rdBufferHeight;
-	
+	RDInstance *controller;
+	NSImage *back;
 	NSPoint mouseLoc;
 	NSRect clipRect;
 	NSCursor *cursor;
 	int bitdepth;
-	CRDKeyboard *keyTranslator;
-	unsigned int *colorMap;	// always a size of 256
+	RDCKeyboard *keyTranslator;
+	unsigned int *colorMap;	// always a size of 0xff+1
 	NSSize screenSize;
 	
 	// For mouse event throttling
@@ -52,27 +42,21 @@
 
 // Drawing
 - (void)ellipse:(NSRect)r color:(NSColor *)c;
-- (void)polygon:(RDPoint*)points npoints:(int)nPoints color:(NSColor *)c winding:(NSWindingRule)winding;
-- (void)polyline:(RDPoint*)points npoints:(int)nPoints color:(NSColor *)c width:(int)w;
+- (void)polygon:(POINT *)points npoints:(int)nPoints color:(NSColor *)c winding:(NSWindingRule)winding;
+- (void)polyline:(POINT *)points npoints:(int)nPoints color:(NSColor *)c width:(int)w;
 - (void)fillRect:(NSRect)rect withColor:(NSColor *)color;
 - (void)fillRect:(NSRect)rect withColor:(NSColor *)color patternOrigin:(NSPoint)origin;
-- (void)fillRect:(NSRect)rect withRDColor:(int)color;
-- (void)drawBitmap:(CRDBitmap *)image inRect:(NSRect)r from:(NSPoint)origin operation:(NSCompositingOperation)op;
+- (void)memblt:(NSRect)to from:(RDCBitmap *)image withOrigin:(NSPoint)origin;
 - (void)screenBlit:(NSRect)from to:(NSPoint)to;
 - (void)drawLineFrom:(NSPoint)start to:(NSPoint)end color:(NSColor *)color width:(int)width;
-- (void)drawGlyph:(CRDBitmap *)glyph at:(NSRect)r foregroundColor:(NSColor *)c;
+- (void)drawGlyph:(RDCBitmap *)glyph at:(NSRect)r fg:(NSColor *)fgcolor bg:(NSColor *)bgcolor;
 - (void)swapRect:(NSRect)r;
 
 // Other rdesktop handlers
 - (void)setClip:(NSRect)r;
 - (void)resetClip;
-
-// Backing store
 - (void)startUpdate;
 - (void)stopUpdate;
-- (void)focusBackingStore;
-- (void)releaseBackingStore;
-- (int)getBackingStoreBytes:(unsigned char **)retBytes;
 
 - (BOOL)checkMouseInBounds:(NSEvent *)ev;
 - (void)sendMouseInput:(unsigned short)flags;
@@ -85,10 +69,9 @@
 - (void)setNeedsDisplayInRects:(NSArray *)rects;
 - (void)setNeedsDisplayInRectAsValue:(NSValue *)rectValue;
 - (void)writeScreenCaptureToFile:(NSString *)path;
-- (void)setScreenSize:(NSSize)newSize;
 
 // Accessors
-- (void)setController:(CRDSession *)instance;
+- (void)setController:(RDInstance *)instance;
 - (int)bitsPerPixel;
 - (void)setBitdepth:(int)depth;
 - (int)width;
@@ -96,6 +79,5 @@
 - (unsigned int *)colorMap;
 - (void)setColorMap:(unsigned int *)map;
 - (void)setCursor:(NSCursor *)cur;
-- (CGContextRef)rdBufferContext;
 
 @end

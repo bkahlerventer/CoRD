@@ -18,8 +18,9 @@
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
-#import "rdesktop.h"
-#import "CRDShared.h"
+#import "disk.h"
+
+#import "miscellany.h"
 
 #import <sys/types.h>
 #import <sys/stat.h>
@@ -33,27 +34,124 @@
 #import <utime.h>
 #import <time.h>		/* ctime */
 
+#import <Cocoa/Cocoa.h>
+#import <CoreFoundation/CoreFoundation.h>
 
 #define DIRFD(a) (dirfd(a))
 
+
+/* TODO: Fix mntent-handling for solaris
+ * #import <sys/mntent.h> */
+#if (defined(HAVE_MNTENT_H) && defined(HAVE_SETMNTENT))
+#import <mntent.h>
+#define MNTENT_PATH "/etc/mtab"
+#define USE_SETMNTENT
+#endif
+
+#ifdef HAVE_SYS_VFS_H
+#import <sys/vfs.h>
+#endif
+
+#ifdef HAVE_SYS_STATVFS_H
 #import <sys/statvfs.h>
+#endif
+
+#ifdef HAVE_SYS_STATFS_H
+#import <sys/statfs.h>
+#endif
+
+#ifdef HAVE_SYS_PARAM_H
 #import <sys/param.h>
+#endif
+
+#ifdef HAVE_SYS_MOUNT_H
 #import <sys/mount.h>
+#endif
 
+#import "rdesktop.h"
 
+#ifdef STAT_STATFS3_OSF1
+#define STATFS_FN(path, buf) (statfs(path,buf,sizeof(buf)))
+#define STATFS_T statfs
+#define USE_STATFS
+#endif
+
+#ifdef STAT_STATVFS
+#define STATFS_FN(path, buf) (statvfs(path,buf))
+#define STATFS_T statvfs
+#define USE_STATVFS
+#endif
+
+#ifdef STAT_STATVFS64
+#define STATFS_FN(path, buf) (statvfs64(path,buf))
+#define STATFS_T statvfs64
+#define USE_STATVFS
+#endif
+
+#if (defined(STAT_STATFS2_FS_DATA) || defined(STAT_STATFS2_BSIZE) || defined(STAT_STATFS2_FSIZE))
 #define STATFS_FN(path, buf) (statfs(path,buf))
 #define STATFS_T statfs
+#define USE_STATFS
+#endif
+
+#ifdef STAT_STATFS4
+#define STATFS_FN(path, buf) (statfs(path,buf,sizeof(buf),0))
+#define STATFS_T statfs
+#define USE_STATFS
+#endif
+
+#if ((defined(USE_STATFS) && defined(HAVE_STRUCT_STATFS_F_NAMEMAX)) || (defined(USE_STATVFS) && defined(HAVE_STRUCT_STATVFS_F_NAMEMAX)))
+#define F_NAMELEN(buf) ((buf).f_namemax)
+#endif
+
+#if ((defined(USE_STATFS) && defined(HAVE_STRUCT_STATFS_F_NAMELEN)) || (defined(USE_STATVFS) && defined(HAVE_STRUCT_STATVFS_F_NAMELEN)))
+#define F_NAMELEN(buf) ((buf).f_namelen)
+#endif
+
+#ifndef F_NAMELEN
 #define F_NAMELEN(buf) (255)
+#endif
+
+BOOL pathIsHidden(NSString *inURL);
+
+/* Dummy statfs fallback */
+#ifndef STATFS_T
+struct dummy_statfs_t
+{
+	long f_bfree;
+	long f_bsize;
+	long f_blocks;
+	int f_namelen;
+	int f_namemax;
+};
+
+static int dummy_statfs(struct dummy_statfs_t *buf);
+
+static int
+dummy_statfs(struct dummy_statfs_t *buf)
+{
+	buf->f_blocks = 262144;
+	buf->f_bfree = 131072;
+	buf->f_bsize = 512;
+	buf->f_namelen = 255;
+	buf->f_namemax = 255;
+
+	return 0;
+}
+
+#define STATFS_T dummy_statfs_t
+#define STATFS_FN(path,buf) (dummy_statfs(buf))
+#endif
 
 typedef struct
 {
-	char name[PATH_MAX];
-	char label[PATH_MAX];
+	char name[256];
+	char label[256];
 	unsigned long serial;
-	char type[PATH_MAX];
+	char type[256];
 } FsInfoType;
 
-static NTStatus NotifyInfo(RDConnectionRef conn, NTHandle handle, uint32 info_class, NOTIFY * p);
+static NTSTATUS NotifyInfo(rdcConnection conn, NTHANDLE handle, uint32 info_class, NOTIFY * p);
 
 static time_t
 get_create_time(struct stat *st)
@@ -104,7 +202,7 @@ ftruncate_growable(int fd, off_t length)
 {
 	int ret;
 	off_t pos;
-	static const char zero = 0;
+	static const char zero;
 
 	/* Try the simple method first */
 	if ((ret = ftruncate(fd, length)) != -1)
@@ -208,13 +306,14 @@ open_weak_exclusive(const char *pathname, int flags, mode_t mode)
 
 /* Enumeration of devices from rdesktop.c        */
 /* returns numer of units found and initialized. */
+// takes an rdcConnection, a character array of paths, and the number of items
 
 int
-disk_enum_devices(RDConnectionRef conn, char ** paths, char **names, int count)
+disk_enum_devices(rdcConnection conn, char ** paths, char **names, int count)
 {
 	int i;
 	
-	for (i = 0 ; i < count; i++, conn->numDevices++)
+	for (i=0;i<count;i++, conn->numDevices++)
 	{	
 		strncpy(conn->rdpdrDevice[conn->numDevices].name,names[i], sizeof(conn->rdpdrDevice[conn->numDevices].name) -1);
 		if (strlen(names[i]) > (sizeof(conn->rdpdrDevice[conn->numDevices].name) -1 ))
@@ -231,14 +330,14 @@ disk_enum_devices(RDConnectionRef conn, char ** paths, char **names, int count)
 
 
 /* Opens or creates a file or directory */
-static NTStatus
-disk_create(RDConnectionRef conn, uint32 device_id, uint32 accessmask, uint32 sharemode, uint32 create_disposition,
-	    uint32 flags_and_attributes, char *filename, NTHandle * phandle)
+static NTSTATUS
+disk_create(rdcConnection conn, uint32 device_id, uint32 accessmask, uint32 sharemode, uint32 create_disposition,
+	    uint32 flags_and_attributes, char *filename, NTHANDLE * phandle)
 {
-	NTHandle handle;
+	NTHANDLE handle;
 	DIR *dirp;
 	int flags, mode;
-	char path[PATH_MAX];
+	char path[256];
 	struct stat filestat;
 
 	handle = 0;
@@ -385,18 +484,18 @@ disk_create(RDConnectionRef conn, uint32 device_id, uint32 accessmask, uint32 sh
 	conn->fileInfo[handle].device_id = device_id;
 	conn->fileInfo[handle].flags_and_attributes = flags_and_attributes;
 	conn->fileInfo[handle].accessmask = accessmask;
-	strncpy(conn->fileInfo[handle].path, path, PATH_MAX - 1);
+	strncpy(conn->fileInfo[handle].path, path, 255);
 	conn->fileInfo[handle].delete_on_close = False;
 	conn->notifyStamp = True;
-	
+
 	*phandle = handle;
 	return STATUS_SUCCESS;
 }
 
-static NTStatus
-disk_close(RDConnectionRef conn, NTHandle handle)
+static NTSTATUS
+disk_close(rdcConnection conn, NTHANDLE handle)
 {
-	RDFileInfo *pfinfo;
+	struct fileinfo *pfinfo;
 
 	pfinfo = &(conn->fileInfo[handle]);
 
@@ -440,8 +539,8 @@ disk_close(RDConnectionRef conn, NTHandle handle)
 	return STATUS_SUCCESS;
 }
 
-static NTStatus
-disk_read(RDConnectionRef conn, NTHandle handle, uint8 * data, uint32 length, uint32 offset, uint32 * result)
+static NTSTATUS
+disk_read(rdcConnection conn, NTHANDLE handle, uint8 * data, uint32 length, uint32 offset, uint32 * result)
 {
 	int n;
 
@@ -480,8 +579,8 @@ disk_read(RDConnectionRef conn, NTHandle handle, uint8 * data, uint32 length, ui
 	return STATUS_SUCCESS;
 }
 
-static NTStatus
-disk_write(RDConnectionRef conn, NTHandle handle, uint8 * data, uint32 length, uint32 offset, uint32 * result)
+static NTSTATUS
+disk_write(rdcConnection conn, NTHANDLE handle, uint8 * data, uint32 length, uint32 offset, uint32 * result)
 {
 	int n;
 
@@ -507,8 +606,8 @@ disk_write(RDConnectionRef conn, NTHandle handle, uint8 * data, uint32 length, u
 	return STATUS_SUCCESS;
 }
 
-NTStatus
-disk_query_information(RDConnectionRef conn, NTHandle handle, uint32 info_class, RDStreamRef outStream)
+NTSTATUS
+disk_query_information(rdcConnection conn, NTHANDLE handle, uint32 info_class, STREAM out)
 {
 	uint32 file_attributes, ft_high, ft_low;
 	struct stat filestat;
@@ -520,7 +619,7 @@ disk_query_information(RDConnectionRef conn, NTHandle handle, uint32 info_class,
 	if (fstat(handle, &filestat) != 0)
 	{
 		perror("stat");
-		out_uint8(outStream, 0);
+		out_uint8(out, 0);
 		return STATUS_ACCESS_DENIED;
 	}
 
@@ -543,37 +642,41 @@ disk_query_information(RDConnectionRef conn, NTHandle handle, uint32 info_class,
 	switch (info_class)
 	{
 		case FileBasicInformation:
-			seconds_since_1970_to_filetime(get_create_time(&filestat), &ft_high, &ft_low);
-			out_uint32_le(outStream, ft_low);	/* create_access_time */
-			out_uint32_le(outStream, ft_high);
+			seconds_since_1970_to_filetime(get_create_time(&filestat), &ft_high,
+						       &ft_low);
+			out_uint32_le(out, ft_low);	/* create_access_time */
+			out_uint32_le(out, ft_high);
 
 			seconds_since_1970_to_filetime(filestat.st_atime, &ft_high, &ft_low);
-			out_uint32_le(outStream, ft_low);	/* last_access_time */
-			out_uint32_le(outStream, ft_high);
+			out_uint32_le(out, ft_low);	/* last_access_time */
+			out_uint32_le(out, ft_high);
 
 			seconds_since_1970_to_filetime(filestat.st_mtime, &ft_high, &ft_low);
-			out_uint32_le(outStream, ft_low);	/* last_write_time */
-			out_uint32_le(outStream, ft_high);
+			out_uint32_le(out, ft_low);	/* last_write_time */
+			out_uint32_le(out, ft_high);
 
 			seconds_since_1970_to_filetime(filestat.st_ctime, &ft_high, &ft_low);
-			out_uint32_le(outStream, ft_low);	/* last_change_time */
-			out_uint32_le(outStream, ft_high);
+			out_uint32_le(out, ft_low);	/* last_change_time */
+			out_uint32_le(out, ft_high);
 
-			out_uint32_le(outStream, file_attributes);
+			out_uint32_le(out, file_attributes);
 			break;
 
 		case FileStandardInformation:
-			out_uint64_le(outStream, filestat.st_size);	/* Allocation size */
-			out_uint64_le(outStream, filestat.st_size);	/* End of file */
-			out_uint32_le(outStream, filestat.st_nlink);	/* Number of links */
-			out_uint8(outStream, 0);	/* Delete pending */
-			out_uint8(outStream, S_ISDIR(filestat.st_mode) ? 1 : 0);	/* Directory */
+
+			out_uint32_le(out, filestat.st_size);	/* Allocation size */
+			out_uint32_le(out, 0);
+			out_uint32_le(out, filestat.st_size);	/* End of file */
+			out_uint32_le(out, 0);
+			out_uint32_le(out, filestat.st_nlink);	/* Number of links */
+			out_uint8(out, 0);	/* Delete pending */
+			out_uint8(out, S_ISDIR(filestat.st_mode) ? 1 : 0);	/* Directory */
 			break;
 
 		case FileObjectIdInformation:
 
-			out_uint32_le(outStream, file_attributes);	/* File Attributes */
-			out_uint32_le(outStream, 0);	/* Reparse Tag */
+			out_uint32_le(out, file_attributes);	/* File Attributes */
+			out_uint32_le(out, 0);	/* Reparse Tag */
 			break;
 
 		default:
@@ -584,12 +687,12 @@ disk_query_information(RDConnectionRef conn, NTHandle handle, uint32 info_class,
 	return STATUS_SUCCESS;
 }
 
-NTStatus
-disk_set_information(RDConnectionRef conn, NTHandle handle, uint32 info_class, RDStreamRef in, RDStreamRef out)
+NTSTATUS
+disk_set_information(rdcConnection conn, NTHANDLE handle, uint32 info_class, STREAM in, STREAM out)
 {
 	uint32 length, file_attributes, ft_high, ft_low, delete_on_close;
-	char newname[PATH_MAX], fullpath[PATH_MAX];
-	RDFileInfo *pfinfo;
+	char newname[256], fullpath[256];
+	struct fileinfo *pfinfo;
 	int mode;
 	struct stat filestat;
 	time_t write_time, change_time, access_time, mod_time;
@@ -758,11 +861,11 @@ disk_set_information(RDConnectionRef conn, NTHandle handle, uint32 info_class, R
 	return STATUS_SUCCESS;
 }
 
-NTStatus
-disk_check_notify(RDConnectionRef conn, NTHandle handle)
+NTSTATUS
+disk_check_notify(rdcConnection conn, NTHANDLE handle)
 {
-	RDFileInfo *pfinfo;
-	NTStatus status = STATUS_PENDING;
+	struct fileinfo *pfinfo;
+	NTSTATUS status = STATUS_PENDING;
 
 	NOTIFY notify;
 
@@ -789,11 +892,11 @@ disk_check_notify(RDConnectionRef conn, NTHandle handle)
 
 }
 
-NTStatus
-disk_create_notify(RDConnectionRef conn, NTHandle handle, uint32 info_class)
+NTSTATUS
+disk_create_notify(rdcConnection conn, NTHANDLE handle, uint32 info_class)
 {
-	RDFileInfo *pfinfo;
-	NTStatus ret = STATUS_PENDING;
+	struct fileinfo *pfinfo;
+	NTSTATUS ret = STATUS_PENDING;
 
 	/* printf("start disk_create_notify info_class %X\n", info_class); */
 
@@ -815,10 +918,10 @@ disk_create_notify(RDConnectionRef conn, NTHandle handle, uint32 info_class)
 
 }
 
-static NTStatus
-NotifyInfo(RDConnectionRef conn, NTHandle handle, uint32 info_class, NOTIFY * p)
+static NTSTATUS
+NotifyInfo(rdcConnection conn, NTHANDLE handle, uint32 info_class, NOTIFY * p)
 {
-	RDFileInfo *pfinfo;
+	struct fileinfo *pfinfo;
 	struct stat buf;
 	struct dirent *dp;
 	char *fullname;
@@ -887,7 +990,7 @@ FsVolumeInfo(char *fpath)
 
 	while ((e = getmntent(fdfs)))
 	{
-		if (str_startswith(e->mnt_dir, fpath))
+		if (strncmp(fpath, e->mnt_dir, strlen(fpath)) == 0)
 		{
 			strcpy(info.type, e->mnt_type);
 			strcpy(info.name, e->mnt_fsname);
@@ -906,13 +1009,13 @@ FsVolumeInfo(char *fpath)
 						info.serial =
 							(buf[42] << 24) + (buf[41] << 16) +
 							(buf[40] << 8) + buf[39];
-						strncpy(info.label, (char *)buf + 43, 10);
+						strncpy(info.label, buf + 43, 10);
 						info.label[10] = '\0';
 					}
 					else if (lseek(fd, 32767, SEEK_SET) >= 0)	/* ISO9660 */
 					{
 						read(fd, buf, sizeof(buf));
-						strncpy(info.label, (char *)buf + 41, 32);
+						strncpy(info.label, buf + 41, 32);
 						info.label[32] = '\0';
 						/* info.Serial = (buf[128]<<24)+(buf[127]<<16)+(buf[126]<<8)+buf[125]; */
 					}
@@ -933,11 +1036,11 @@ FsVolumeInfo(char *fpath)
 }
 
 
-NTStatus
-disk_query_volume_information(RDConnectionRef conn, NTHandle handle, uint32 info_class, RDStreamRef outStream)
+NTSTATUS
+disk_query_volume_information(rdcConnection conn, NTHANDLE handle, uint32 info_class, STREAM out)
 {
 	struct STATFS_T stat_fs;
-	RDFileInfo *pfinfo;
+	struct fileinfo *pfinfo;
 	FsInfoType *fsinfo;
 
 	pfinfo = &(conn->fileInfo[handle]);
@@ -953,33 +1056,34 @@ disk_query_volume_information(RDConnectionRef conn, NTHandle handle, uint32 info
 	switch (info_class)
 	{
 		case FileFsVolumeInformation:
-			
-			out_uint32_le(outStream, 0);	/* volume creation time low */
-			out_uint32_le(outStream, 0);	/* volume creation time high */
-			out_uint32_le(outStream, fsinfo->serial);	/* serial */
 
-			out_uint32_le(outStream, 2 * strlen(fsinfo->label));	/* length of string */
+			out_uint32_le(out, 0);	/* volume creation time low */
+			out_uint32_le(out, 0);	/* volume creation time high */
+			out_uint32_le(out, fsinfo->serial);	/* serial */
 
-			out_uint8(outStream, 0);	/* support objects? */
-			rdp_out_unistr(outStream, fsinfo->label, 2 * strlen(fsinfo->label) - 2);
+			out_uint32_le(out, 2 * strlen(fsinfo->label));	/* length of string */
+
+			out_uint8(out, 0);	/* support objects? */
+			rdp_out_unistr(out, fsinfo->label, 2 * strlen(fsinfo->label) - 2);
 			break;
 
 		case FileFsSizeInformation:
-			out_uint32_le(outStream, stat_fs.f_blocks);	/* Total allocation units low */
-			out_uint32_le(outStream, 0);	/* Total allocation high units */
-			out_uint32_le(outStream, stat_fs.f_bfree);	/* Available allocation units */
-			out_uint32_le(outStream, 0);	/* Available allowcation units */
-			out_uint32_le(outStream, stat_fs.f_bsize / 0x200);	/* Assume 512 sectors per allocation unit */
-			out_uint32_le(outStream, 0x200);	/* Assume 512 bytes per sector */
+
+			out_uint32_le(out, stat_fs.f_blocks);	/* Total allocation units low */
+			out_uint32_le(out, 0);	/* Total allocation high units */
+			out_uint32_le(out, stat_fs.f_bfree);	/* Available allocation units */
+			out_uint32_le(out, 0);	/* Available allowcation units */
+			out_uint32_le(out, stat_fs.f_bsize / 0x200);	/* Sectors per allocation unit */
+			out_uint32_le(out, 0x200);	/* Bytes per sector */
 			break;
 
 		case FileFsAttributeInformation:
 
-			out_uint32_le(outStream, FS_CASE_SENSITIVE | FS_CASE_IS_PRESERVED);	/* fs attributes */
-			out_uint32_le(outStream, F_NAMELEN(stat_fs));	/* max length of filename */
+			out_uint32_le(out, FS_CASE_SENSITIVE | FS_CASE_IS_PRESERVED);	/* fs attributes */
+			out_uint32_le(out, F_NAMELEN(stat_fs));	/* max length of filename */
 
-			out_uint32_le(outStream, 2 * strlen(fsinfo->type));	/* length of fs_type */
-			rdp_out_unistr(outStream, fsinfo->type, 2 * strlen(fsinfo->type) - 2);
+			out_uint32_le(out, 2 * strlen(fsinfo->type));	/* length of fs_type */
+			rdp_out_unistr(out, fsinfo->type, 2 * strlen(fsinfo->type) - 2);
 			break;
 
 		case FileFsLabelInformation:
@@ -997,16 +1101,16 @@ disk_query_volume_information(RDConnectionRef conn, NTHandle handle, uint32 info
 	return STATUS_SUCCESS;
 }
 
-NTStatus
-disk_query_directory(RDConnectionRef conn, NTHandle handle, uint32 info_class, char *pattern, RDStreamRef outStream)
+NTSTATUS
+disk_query_directory(rdcConnection conn, NTHANDLE handle, uint32 info_class, char *pattern, STREAM out)
 {
 	uint32 file_attributes, ft_low, ft_high;
 	const char *dirname;
-	char fullpath[PATH_MAX];
+	char fullpath[256];
 	DIR *pdir;
 	struct dirent *pdirent;
 	struct stat fstat;
-	RDFileInfo *pfinfo;
+	struct fileinfo *pfinfo;
 
 	pfinfo = &(conn->fileInfo[handle]);
 	pdir = pfinfo->pdir;
@@ -1020,7 +1124,7 @@ disk_query_directory(RDConnectionRef conn, NTHandle handle, uint32 info_class, c
 			/* If a search pattern is received, remember this pattern, and restart search */
 			if (pattern[0] != 0)
 			{
-				strncpy(pfinfo->pattern, 1 + strrchr(pattern, '/'), PATH_MAX - 1);
+				strncpy(pfinfo->pattern, 1 + strrchr(pattern, '/'), 64);
 				rewinddir(pdir);
 			}
 
@@ -1049,14 +1153,14 @@ disk_query_directory(RDConnectionRef conn, NTHandle handle, uint32 info_class, c
 						/* Fatal error. By returning STATUS_NO_SUCH_FILE, 
 						   the directory list operation will be aborted */
 						perror(fullpath);
-						out_uint8(outStream, 0);
+						out_uint8(out, 0);
 						return STATUS_NO_SUCH_FILE;
 				}
 			}
 
 			if (S_ISDIR(fstat.st_mode))
 				file_attributes |= FILE_ATTRIBUTE_DIRECTORY;
-			if (CRDPathIsHidden([NSString stringWithUTF8String:fullpath]))
+			if (pathIsHidden([NSString stringWithUTF8String:fullpath]))
 				file_attributes |= FILE_ATTRIBUTE_HIDDEN;
 			if (!file_attributes)
 				file_attributes |= FILE_ATTRIBUTE_NORMAL;
@@ -1064,32 +1168,34 @@ disk_query_directory(RDConnectionRef conn, NTHandle handle, uint32 info_class, c
 				file_attributes |= FILE_ATTRIBUTE_READONLY;
 
 			/* Return requested information */
-			out_uint8s(outStream, 8);	/* unknown zero */
+			out_uint8s(out, 8);	/* unknown zero */
 
 			seconds_since_1970_to_filetime(get_create_time(&fstat), &ft_high, &ft_low);
-			out_uint32_le(outStream, ft_low);	/* create time */
-			out_uint32_le(outStream, ft_high);
+			out_uint32_le(out, ft_low);	/* create time */
+			out_uint32_le(out, ft_high);
 
 			seconds_since_1970_to_filetime(fstat.st_atime, &ft_high, &ft_low);
-			out_uint32_le(outStream, ft_low);	/* last_access_time */
-			out_uint32_le(outStream, ft_high);
+			out_uint32_le(out, ft_low);	/* last_access_time */
+			out_uint32_le(out, ft_high);
 
 			seconds_since_1970_to_filetime(fstat.st_mtime, &ft_high, &ft_low);
-			out_uint32_le(outStream, ft_low);	/* last_write_time */
-			out_uint32_le(outStream, ft_high);
+			out_uint32_le(out, ft_low);	/* last_write_time */
+			out_uint32_le(out, ft_high);
 
 			seconds_since_1970_to_filetime(fstat.st_ctime, &ft_high, &ft_low);
-			out_uint32_le(outStream, ft_low);	/* change_write_time */
-			out_uint32_le(outStream, ft_high);
+			out_uint32_le(out, ft_low);	/* change_write_time */
+			out_uint32_le(out, ft_high);
 
-			out_uint64_le(outStream, fstat.st_size);	/* filesize */
-			out_uint64_le(outStream, fstat.st_size);	/* filesize */
-			out_uint32_le(outStream, file_attributes);
-			out_uint8(outStream, 2 * strlen(pdirent->d_name) + 2);	/* unicode length */
-			out_uint8s(outStream, 7);	/* pad? */
-			out_uint8(outStream, 0);	/* 8.3 file length */
-			out_uint8s(outStream, 2 * 12);	/* 8.3 unicode length */
-			rdp_out_unistr(outStream, pdirent->d_name, 2 * strlen(pdirent->d_name));
+			out_uint32_le(out, fstat.st_size);	/* filesize low */
+			out_uint32_le(out, 0);	/* filesize high */
+			out_uint32_le(out, fstat.st_size);	/* filesize low */
+			out_uint32_le(out, 0);	/* filesize high */
+			out_uint32_le(out, file_attributes);
+			out_uint8(out, 2 * strlen(pdirent->d_name) + 2);	/* unicode length */
+			out_uint8s(out, 7);	/* pad? */
+			out_uint8(out, 0);	/* 8.3 file length */
+			out_uint8s(out, 2 * 12);	/* 8.3 unicode length */
+			rdp_out_unistr(out, pdirent->d_name, 2 * strlen(pdirent->d_name));
 			break;
 
 		default:
@@ -1104,8 +1210,8 @@ disk_query_directory(RDConnectionRef conn, NTHandle handle, uint32 info_class, c
 	return STATUS_SUCCESS;
 }
 
-static NTStatus
-disk_device_control(RDConnectionRef conn, NTHandle handle, uint32 request, RDStreamRef in, RDStreamRef out)
+static NTSTATUS
+disk_device_control(rdcConnection conn, NTHANDLE handle, uint32 request, STREAM in, STREAM out)
 {
 	if (((request >> 16) != 20) || ((request >> 16) != 9))
 		return STATUS_INVALID_PARAMETER;
@@ -1135,3 +1241,15 @@ DEVICE_FNS disk_fns = {
 	disk_write,
 	disk_device_control	/* device_control */
 };
+
+BOOL pathIsHidden(NSString *path) 
+{
+	CFURLRef fileURL = CFURLCreateWithString(NULL,(CFStringRef)[@"file://" stringByAppendingString:path],NULL);	
+	if (fileURL) {
+		LSItemInfoRecord itemInfo;
+		LSCopyItemInfoForURL(fileURL, kLSRequestAllFlags, &itemInfo);
+		CFRelease(fileURL);	
+		return itemInfo.flags & kLSItemInfoIsInvisible;
+	} else
+		return False;
+}

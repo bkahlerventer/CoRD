@@ -17,23 +17,23 @@
 
 #import <Cocoa/Cocoa.h>
 
-@class CRDSessionView;
+@class RDCView;
 
-@interface CRDBitmap : NSObject
+@interface RDCBitmap : NSObject
 {
 	NSImage *image;
+	NSBitmapImageRep *bitmap;
 	NSData *data;
 	NSCursor *cursor;
+	unsigned char *planes[2];
 	NSColor *color;
 }
 
-- (id)initWithBitmapData:(const unsigned char *)d size:(NSSize)s view:(CRDSessionView *)v;
-- (id)initWithGlyphData:(const unsigned char *)d size:(NSSize)s view:(CRDSessionView *)v;
-- (id)initWithCursorData:(const unsigned char *)d alpha:(const unsigned char *)a size:(NSSize)s hotspot:(NSPoint)hotspot view:(CRDSessionView *)v;
+- (id)initWithBitmapData:(const unsigned char *)d size:(NSSize)s view:(RDCView *)v;
+- (id)initWithGlyphData:(const unsigned char *)d size:(NSSize)s view:(RDCView *)v;
+- (id)initWithCursorData:(const unsigned char *)d alpha:(const unsigned char *)a size:(NSSize)s hotspot:(NSPoint)hotspot view:(RDCView *)v;
 
 - (void)drawInRect:(NSRect)dstRect fromRect:(NSRect)srcRect operation:(NSCompositingOperation)op;
-
-- (void)overlayColor:(NSColor *)c;
 
 - (NSImage *)image;
 - (void)setColor:(NSColor *)color;

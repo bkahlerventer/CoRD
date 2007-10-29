@@ -23,20 +23,18 @@
 
 #import <IOKit/hidsystem/IOHIDTypes.h>
 
-#import "CRDKeyboard.h"
-#import "CRDSession.h"
-#import "CRDSwappedModifiersUtility.h"
+#import "RDCKeyboard.h"
+#import "RDInstance.h"
 #import "rdesktop.h"
-#import "CRDShared.h"
+#import "scancodes.h"
+#import "miscellany.h"
 
 #define KEYMAP_ENTRY(n) [[virtualKeymap objectForKey:[NSNumber numberWithInt:(n)]] intValue]
 #define SET_KEYMAP_ENTRY(n, v) [virtualKeymap setObject:[NSNumber numberWithInt:(v)] forKey:[NSNumber numberWithInt:(n)]]
-#define GET_MODIFIER_FLAGS(f) (CRDPreferenceIsEnabled(CRDPrefsIgnoreCustomModifiers) ? [CRDSwappedModifiersUtility physicalModifiersForVirtualFlags:f] : f )
-
 
 static NSDictionary *windowsKeymapTable = nil;
 
-@interface CRDKeyboard (Private)
+@interface RDCKeyboard (Private)
 	- (BOOL)readKeymap;
 	- (BOOL)scancodeIsModifier:(uint8)scancode;
 	- (void)setRemoteModifiers:(unsigned)newMods;
@@ -44,7 +42,7 @@ static NSDictionary *windowsKeymapTable = nil;
 
 #pragma mark -
 
-@implementation CRDKeyboard
+@implementation RDCKeyboard
 
 - (id) init
 {
@@ -69,13 +67,13 @@ static NSDictionary *windowsKeymapTable = nil;
 #pragma mark Key event handling
 - (void)handleKeyEvent:(NSEvent *)ev keyDown:(BOOL)down
 {
-	uint16 rdflags = [CRDKeyboard modifiersForEvent:ev];
+	uint16 rdflags = [RDCKeyboard modifiersForEvent:ev];
 	uint16 keycode = [ev keyCode];
 	
 	DEBUG_KEYBOARD( (@"handleKeyEvent: virtual key 0x%x %spressed", keycode, (down) ? "" : "de") );
 	unsigned savedMods = remoteModifiers;
 	
-	[self setRemoteModifiers:GET_MODIFIER_FLAGS([ev modifierFlags])];
+	[self setRemoteModifiers:[ev modifierFlags]];
 	[self sendKeycode:keycode modifiers:rdflags pressed:down];
 }
 
@@ -85,18 +83,18 @@ static NSDictionary *windowsKeymapTable = nil;
 	
 	// Filter KeyDown events for the Windows key, instead, send both on key up
 	static int windowsKeySuppressed = 0;
-	unsigned newMods = GET_MODIFIER_FLAGS([ev modifierFlags]);
+	unsigned newMods = [ev modifierFlags];
 	
 	if ( (newMods & NSCommandKeyMask) && !(remoteModifiers & NSCommandKeyMask) )
 	{
 		// suppress keydown event for windows key
 		newMods &= !NSCommandKeyMask;
 		windowsKeySuppressed = 1;
-		DEBUG_KEYBOARD( (@"Supressing windows key") );
+		DEBUG_KEYBOARD( (@"supressing windows key") );
 	}
 	else if ( !(newMods & NSCommandKeyMask) && (windowsKeySuppressed || (remoteModifiers & NSCommandKeyMask)) )
 	{
-		DEBUG_KEYBOARD( (@"Sending previously suppressed windows keystroke") );
+		DEBUG_KEYBOARD( (@"Sending Windows key down/up") );
 		if ( !(remoteModifiers & NSCommandKeyMask))
 			[self sendScancode:SCANCODE_CHAR_LWIN flags:RDP_KEYPRESS];
 		[self sendScancode:SCANCODE_CHAR_LWIN flags:RDP_KEYRELEASE];
@@ -127,21 +125,15 @@ static NSDictionary *windowsKeymapTable = nil;
 
 - (void)sendScancode:(uint8)scancode flags:(uint16)flags
 {
-	if ( ((scancode == SCANCODE_CHAR_LWIN) || (scancode == SCANCODE_CHAR_RWIN)) &&
-		!CRDPreferenceIsEnabled(CRDDefaultsSendWindowsKey))
-	{
-		return;
-	}
-	
 	if (scancode & SCANCODE_EXTENDED)
 	{
 		DEBUG_KEYBOARD((@"Sending extended scancode=0x%x, flags=0x%x\n", scancode & ~SCANCODE_EXTENDED, flags));
-		[controller sendInputOnConnectionThread:time(NULL) type:RDP_INPUT_SCANCODE flags:(flags | KBD_FLAG_EXT) param1:(scancode & ~SCANCODE_EXTENDED) param2:0];
+		[controller sendInput:RDP_INPUT_SCANCODE flags:(flags | KBD_FLAG_EXT) param1:(scancode & ~SCANCODE_EXTENDED) param2:0];
 	}
 	else
 	{
 		DEBUG_KEYBOARD( (@"Sending scancode=0x%x flags=0x%x", scancode, flags) );
-		[controller sendInputOnConnectionThread:time(NULL) type:RDP_INPUT_SCANCODE flags:flags param1:scancode param2:0];
+		[controller sendInput:RDP_INPUT_SCANCODE flags:flags param1:scancode param2:0];
 	}
 }
 
@@ -156,7 +148,7 @@ static NSDictionary *windowsKeymapTable = nil;
 	#define UP_OR_DOWN(b) ( (b) ? RDP_KEYPRESS : RDP_KEYRELEASE )
 	
 	// keySent is used because some older keyboards may not specify right or left.
-	//	I don't know if it is actually needed.
+	//	It is unknown if it is actually needed.
 	
 	// Shift key
 	if ( (keySent = changedMods & NX_DEVICELSHIFTKEYMASK) )
@@ -208,12 +200,12 @@ static NSDictionary *windowsKeymapTable = nil;
 
 #pragma mark -
 #pragma mark Accessors
-- (CRDSession *)controller
+- (RDInstance *)controller
 {
 	return controller;
 }
 
-- (void)setController:(CRDSession *)cont
+- (void)setController:(RDInstance *)cont
 {
 	controller = cont;
 }

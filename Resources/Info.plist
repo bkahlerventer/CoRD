@@ -11,14 +11,14 @@
 			<array>
 				<string>rdp</string>
 			</array>
-			<key>CFBundleTypeIconFile</key>
-			<string>rdp document</string>
-			<key>CFBundleTypeName</key>
-			<string>Remote Desktop Connection</string>
 			<key>CFBundleTypeOSTypes</key>
 			<array>
 				<string>RDP </string>
 			</array>
+			<key>CFBundleTypeIconFile</key>
+			<string>rdp document</string>
+			<key>CFBundleTypeName</key>
+			<string>Remote Desktop Connection</string>
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>LSIsAppleDefaultForType</key>
@@ -27,17 +27,6 @@
 			<false/>
 			<key>NSPersistentStoreTypeKey</key>
 			<string>Binary</string>
-		</dict>
-	</array>
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleURLName</key>
-			<string>Remote Desktop Protocol Server</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>rdp</string>
-			</array>
 		</dict>
 	</array>
 	<key>CFBundleExecutable</key>
@@ -56,25 +45,17 @@
 	<string>${PRODUCT_NAME}</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
-	<key>CFBundleShortVersionString</key>
-	<string>0.5.0</string>
 	<key>CFBundleSignature</key>
-	<string>RDC#</string>
+	<string>????</string>
 	<key>CFBundleVersion</key>
-	<string>187</string>
-	<key>NSAppleScriptEnabled</key>
-	<string>YES</string>
+	<string>195</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.4.2</string>
 	<key>NSMainNibFile</key>
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>CRDApplication</string>
-	<key>OSAScriptingDefinition</key>
-	<string>CoRD.sdef</string>
 	<key>SUFeedURL</key>
 	<string>http://cord.sourceforge.net/sparkle.xml</string>
-	<key>SmartCrashReports_CompanyName</key>
-	<string>CoRD Project</string>
-	<key>SmartCrashReports_EmailTicket</key>
-	<string>SCR-0E940983EA</string>
 </dict>
 </plist>

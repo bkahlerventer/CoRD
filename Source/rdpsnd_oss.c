@@ -18,7 +18,6 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
-/* NOTE: this file was neglected when I upgraded to 1.5.0. It is probably 1.4.1. */
 
 #import "rdesktop.h"
 #import <unistd.h>
@@ -31,20 +30,20 @@
 #define MAX_QUEUE	10
 
 int g_dsp_fd;
-RDBOOL g_dsp_busy = False;
+RDCBOOL g_dsp_busy = False;
 static int g_snd_rate;
 static short g_samplewidth;
-static RDBOOL g_driver_broken = False;
+static RDCBOOL g_driver_broken = False;
 
 static struct audio_packet
 {
-	RDStream s;
+	struct stream s;
 	uint16 tick;
 	uint8 index;
 } packet_queue[MAX_QUEUE];
 static unsigned int queue_hi, queue_lo;
 
-RDBOOL
+RDCBOOL
 wave_out_open(void)
 {
 	char *dsp_dev = getenv("AUDIODEV");
@@ -71,8 +70,8 @@ wave_out_close(void)
 	close(g_dsp_fd);
 }
 
-RDBOOL
-wave_out_format_supported(RDWaveFormat * pwfx)
+RDCBOOL
+wave_out_format_supported(WAVEFORMATEX * pwfx)
 {
 	if (pwfx->wFormatTag != WAVE_FORMAT_PCM)
 		return False;
@@ -84,8 +83,8 @@ wave_out_format_supported(RDWaveFormat * pwfx)
 	return True;
 }
 
-RDBOOL
-wave_out_set_format(RDWaveFormat * pwfx)
+RDCBOOL
+wave_out_set_format(WAVEFORMATEX * pwfx)
 {
 	int stereo, format, fragments;
 
@@ -162,7 +161,7 @@ wave_out_set_format(RDWaveFormat * pwfx)
 void
 wave_out_volume(uint16 left, uint16 right)
 {
-	static RDBOOL use_dev_mixer = False;
+	static RDCBOOL use_dev_mixer = False;
 	uint32 volume;
 	int fd_mix = -1;
 
@@ -195,7 +194,7 @@ wave_out_volume(uint16 left, uint16 right)
 }
 
 void
-wave_out_write(RDStreamRef s, uint16 tick, uint8 index)
+wave_out_write(STREAM s, uint16 tick, uint8 index)
 {
 	struct audio_packet *packet = &packet_queue[queue_hi];
 	unsigned int next_hi = (queue_hi + 1) % MAX_QUEUE;
@@ -225,10 +224,10 @@ wave_out_play(void)
 {
 	struct audio_packet *packet;
 	ssize_t len;
-	RDStreamRef out;
+	STREAM out;
 	static long startedat_us;
 	static long startedat_s;
-	static RDBOOL started = False;
+	static RDCBOOL started = False;
 	struct timeval tv;
 	audio_buf_info info;
 

@@ -55,14 +55,14 @@
 
 
 int
-mppc_expand(RDConnectionRef conn, uint8 * data, uint32 clen, uint8 ctype, uint32 * roff, uint32 * rlen)
+mppc_expand(rdcConnection conn, uint8 * data, uint32 clen, uint8 ctype, uint32 * roff, uint32 * rlen)
 {
 	int k, walker_len = 0, walker;
 	uint32 i = 0;
 	int next_offset, match_off;
 	int match_len;
 	int old_offset, match_bits;
-	RDBOOL big = ctype & RDP_MPPC_BIG ? True : False;
+	RDCBOOL big = ctype & RDP_MPPC_BIG ? True : False;
 
 	uint8 *dict = conn->mppcDict.hist;
 

@@ -16,7 +16,11 @@
 */
 
 #import "CRDFullScreenWindow.h"
-#import "Carbon/Carbon.h"
+
+@interface CRDFullScreenWindow (Private)
+	- (void)toggleMenuBarVisible:(BOOL)visible;
+@end
+
 
 #pragma mark -
 @implementation CRDFullScreenWindow
@@ -33,17 +37,11 @@
 	[self setHasShadow:NO];
 	[[self contentView] setAutoresizesSubviews:NO];
 	
-	hideMenu = ([[NSScreen screens] count] > 0) && (screen == [[NSScreen screens] objectAtIndex:0]);
-	
 	return self;
 }
 
 - (void)startFullScreen
 {
-	[self setAlphaValue:0.0];
-	[self setLevel:NSPopUpMenuWindowLevel];
-	[self makeKeyAndOrderFront:self];
-
 	NSDictionary *animDict = [NSDictionary dictionaryWithObjectsAndKeys:
 						self, NSViewAnimationTargetKey,
 						NSViewAnimationFadeInEffect, NSViewAnimationEffectKey,
@@ -53,12 +51,14 @@
 	[viewAnim setDuration:0.5];
 	[viewAnim setAnimationCurve:NSAnimationEaseIn];
 	
+	[self setAlphaValue:0.0];
+	[self setLevel:NSPopUpMenuWindowLevel];
+	[self makeKeyAndOrderFront:self];
+	
 	[viewAnim startAnimation];
 	[viewAnim release];	
 	
-	if (hideMenu)
-		SetSystemUIMode(kUIModeAllHidden, kUIOptionAutoShowMenuBar);
-	
+	SetSystemUIMode(kUIModeAllHidden, kUIOptionAutoShowMenuBar);
 	[self setLevel:NSNormalWindowLevel];
 	
 	[self display];
@@ -67,9 +67,7 @@
 - (void)prepareForExit
 {
 	[self setLevel:NSPopUpMenuWindowLevel];
-	
-	if (hideMenu)
-		SetSystemUIMode(kUIModeNormal, 0);
+	SetSystemUIMode(kUIModeNormal, 0);
 }
 
 - (void)exitFullScreen

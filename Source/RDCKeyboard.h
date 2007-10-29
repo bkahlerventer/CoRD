@@ -15,16 +15,28 @@
 	Fifth Floor, Boston, MA 02110-1301 USA
 */
 
-
 #import <Cocoa/Cocoa.h>
+#import "rdesktop.h"
 
-@interface CRDSwappedModifiersUtility : NSObject
+@class RDInstance;
+
+@interface RDCKeyboard : NSObject
 {
-	
+	@private
+		unsigned remoteModifiers;
+		NSMutableDictionary *virtualKeymap;
+		RDInstance *controller;
 }
 
-+ (void)loadStandardTranslation;
-+ (unsigned)physicalModifiersForVirtualFlags:(unsigned)flags;
-+ (BOOL)modifiersAreSwapped;
+- (void)handleKeyEvent:(NSEvent *)ev keyDown:(BOOL)down;
+- (void)handleFlagsChanged:(NSEvent *)ev;
+- (RDInstance *)controller;
+- (void)setController:(RDInstance *)cont;
+- (void)sendKeycode:(uint8)keyCode modifiers:(uint16)rdflags pressed:(BOOL)down;
+- (void)sendScancode:(uint8)scancode flags:(uint16)flags;
+
++ (unsigned)windowsKeymapForMacKeymap:(NSString *)keymapName;
++ (NSString *) currentKeymapName;
++ (uint16)modifiersForEvent:(NSEvent *)ev; 
 
 @end

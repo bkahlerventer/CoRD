@@ -23,7 +23,7 @@
 
 /* Read field indicating which parameters are present */
 static void
-rdp_in_present(RDStreamRef s, uint32 * present, uint8 flags, int size)
+rdp_in_present(STREAM s, uint32 * present, uint8 flags, int size)
 {
 	uint8 bits;
 	int i;
@@ -51,7 +51,7 @@ rdp_in_present(RDStreamRef s, uint32 * present, uint8 flags, int size)
 
 /* Read a co-ordinate (16-bit, or 8-bit delta) */
 static void
-rdp_in_coord(RDStreamRef s, sint16 * coord, RDBOOL delta)
+rdp_in_coord(STREAM s, sint16 * coord, RDCBOOL delta)
 {
 	sint8 change;
 
@@ -86,7 +86,7 @@ parse_delta(uint8 * buffer, int *offset)
 
 /* Read a colour entry */
 static void
-rdp_in_colour(RDStreamRef s, uint32 * colour)
+rdp_in_colour(STREAM s, uint32 * colour)
 {
 	uint32 i;
 	in_uint8(s, i);
@@ -98,8 +98,8 @@ rdp_in_colour(RDStreamRef s, uint32 * colour)
 }
 
 /* Parse bounds information */
-static RDBOOL
-rdp_parse_bounds(RDStreamRef s, RDBounds * bounds)
+static RDCBOOL
+rdp_parse_bounds(STREAM s, BOUNDS * bounds)
 {
 	uint8 present;
 
@@ -129,8 +129,8 @@ rdp_parse_bounds(RDStreamRef s, RDBounds * bounds)
 }
 
 /* Parse a pen */
-static RDBOOL
-rdp_parse_pen(RDStreamRef s, RDPen * pen, uint32 present)
+static RDCBOOL
+rdp_parse_pen(STREAM s, PEN * pen, uint32 present)
 {
 	if (present & 1)
 		in_uint8(s, pen->style);
@@ -145,8 +145,8 @@ rdp_parse_pen(RDStreamRef s, RDPen * pen, uint32 present)
 }
 
 /* Parse a brush */
-static RDBOOL
-rdp_parse_brush(RDStreamRef s, RDBrush * brush, uint32 present)
+static RDCBOOL
+rdp_parse_brush(STREAM s, BRUSH * brush, uint32 present)
 {
 	if (present & 1)
 		in_uint8(s, brush->xorigin);
@@ -168,7 +168,7 @@ rdp_parse_brush(RDStreamRef s, RDBrush * brush, uint32 present)
 
 /* Process a destination blt order */
 static void
-process_destblt(RDConnectionRef conn, RDStreamRef s, DESTBLT_ORDER * os, uint32 present, RDBOOL delta)
+process_destblt(rdcConnection conn, STREAM s, DESTBLT_ORDER * os, uint32 present, RDCBOOL delta)
 {
 	if (present & 0x01)
 		rdp_in_coord(s, &os->x, delta);
@@ -193,7 +193,7 @@ process_destblt(RDConnectionRef conn, RDStreamRef s, DESTBLT_ORDER * os, uint32 
 
 /* Process a pattern blt order */
 static void
-process_patblt(RDConnectionRef conn, RDStreamRef s, PATBLT_ORDER * os, uint32 present, RDBOOL delta)
+process_patblt(rdcConnection conn, STREAM s, PATBLT_ORDER * os, uint32 present, RDCBOOL delta)
 {
 	if (present & 0x0001)
 		rdp_in_coord(s, &os->x, delta);
@@ -227,7 +227,7 @@ process_patblt(RDConnectionRef conn, RDStreamRef s, PATBLT_ORDER * os, uint32 pr
 
 /* Process a screen blt order */
 static void
-process_screenblt(RDConnectionRef conn, RDStreamRef s, SCREENBLT_ORDER * os, uint32 present, RDBOOL delta)
+process_screenblt(rdcConnection conn, STREAM s, SCREENBLT_ORDER * os, uint32 present, RDCBOOL delta)
 {
 	if (present & 0x0001)
 		rdp_in_coord(s, &os->x, delta);
@@ -258,7 +258,7 @@ process_screenblt(RDConnectionRef conn, RDStreamRef s, SCREENBLT_ORDER * os, uin
 
 /* Process a line order */
 static void
-process_line(RDConnectionRef conn, RDStreamRef s, LINE_ORDER * os, uint32 present, RDBOOL delta)
+process_line(rdcConnection conn, STREAM s, LINE_ORDER * os, uint32 present, RDCBOOL delta)
 {
 	if (present & 0x0001)
 		in_uint16_le(s, os->mixmode);
@@ -297,7 +297,7 @@ process_line(RDConnectionRef conn, RDStreamRef s, LINE_ORDER * os, uint32 presen
 
 /* Process an opaque rectangle order */
 static void
-process_rect(RDConnectionRef conn, RDStreamRef s, RECT_ORDER * os, uint32 present, RDBOOL delta)
+process_rect(rdcConnection conn, STREAM s, RECT_ORDER * os, uint32 present, RDCBOOL delta)
 {
 	uint32 i;
 	if (present & 0x01)
@@ -337,7 +337,7 @@ process_rect(RDConnectionRef conn, RDStreamRef s, RECT_ORDER * os, uint32 presen
 
 /* Process a desktop save order */
 static void
-process_desksave(RDConnectionRef conn, RDStreamRef s, DESKSAVE_ORDER * os, uint32 present, RDBOOL delta)
+process_desksave(rdcConnection conn, STREAM s, DESKSAVE_ORDER * os, uint32 present, RDCBOOL delta)
 {
 	int width, height;
 
@@ -373,9 +373,9 @@ process_desksave(RDConnectionRef conn, RDStreamRef s, DESKSAVE_ORDER * os, uint3
 
 /* Process a memory blt order */
 static void
-process_memblt(RDConnectionRef conn, RDStreamRef s, MEMBLT_ORDER * os, uint32 present, RDBOOL delta)
+process_memblt(rdcConnection conn, STREAM s, MEMBLT_ORDER * os, uint32 present, RDCBOOL delta)
 {
-	RDBitmapRef bitmap;
+	HBITMAP bitmap;
 
 	if (present & 0x0001)
 	{
@@ -419,9 +419,9 @@ process_memblt(RDConnectionRef conn, RDStreamRef s, MEMBLT_ORDER * os, uint32 pr
 
 /* Process a 3-way blt order */
 static void
-process_triblt(RDConnectionRef conn, RDStreamRef s, TRIBLT_ORDER * os, uint32 present, RDBOOL delta)
+process_triblt(rdcConnection conn, STREAM s, TRIBLT_ORDER * os, uint32 present, RDCBOOL delta)
 {
-	RDBitmapRef bitmap;
+	HBITMAP bitmap;
 
 	if (present & 0x000001)
 	{
@@ -478,11 +478,11 @@ process_triblt(RDConnectionRef conn, RDStreamRef s, TRIBLT_ORDER * os, uint32 pr
 
 /* Process a polygon order */
 static void
-process_polygon(RDConnectionRef conn, RDStreamRef s, POLYGON_ORDER * os, uint32 present, RDBOOL delta)
+process_polygon(rdcConnection conn, STREAM s, POLYGON_ORDER * os, uint32 present, RDCBOOL delta)
 {
 	int index, data, next;
 	uint8 flags = 0;
-	RDPoint*points;
+	POINT *points;
 
 	if (present & 0x01)
 		rdp_in_coord(s, &os->x, delta);
@@ -524,8 +524,8 @@ process_polygon(RDConnectionRef conn, RDStreamRef s, POLYGON_ORDER * os, uint32 
 		return;
 	}
 
-	points = (RDPoint*) xmalloc((os->npoints + 1) * sizeof(RDPoint));
-	memset(points, 0, (os->npoints + 1) * sizeof(RDPoint));
+	points = (POINT *) xmalloc((os->npoints + 1) * sizeof(POINT));
+	memset(points, 0, (os->npoints + 1) * sizeof(POINT));
 
 	points[0].x = os->x;
 	points[0].y = os->y;
@@ -557,11 +557,11 @@ process_polygon(RDConnectionRef conn, RDStreamRef s, POLYGON_ORDER * os, uint32 
 
 /* Process a polygon2 order */
 static void
-process_polygon2(RDConnectionRef conn, RDStreamRef s, POLYGON2_ORDER * os, uint32 present, RDBOOL delta)
+process_polygon2(rdcConnection conn, STREAM s, POLYGON2_ORDER * os, uint32 present, RDCBOOL delta)
 {
 	int index, data, next;
 	uint8 flags = 0;
-	RDPoint*points;
+	POINT *points;
 
 	if (present & 0x0001)
 		rdp_in_coord(s, &os->x, delta);
@@ -609,8 +609,8 @@ process_polygon2(RDConnectionRef conn, RDStreamRef s, POLYGON2_ORDER * os, uint3
 		return;
 	}
 
-	points = (RDPoint*) xmalloc((os->npoints + 1) * sizeof(RDPoint));
-	memset(points, 0, (os->npoints + 1) * sizeof(RDPoint));
+	points = (POINT *) xmalloc((os->npoints + 1) * sizeof(POINT));
+	memset(points, 0, (os->npoints + 1) * sizeof(POINT));
 
 	points[0].x = os->x;
 	points[0].y = os->y;
@@ -642,12 +642,12 @@ process_polygon2(RDConnectionRef conn, RDStreamRef s, POLYGON2_ORDER * os, uint3
 
 /* Process a polyline order */
 static void
-process_polyline(RDConnectionRef conn, RDStreamRef s, POLYLINE_ORDER * os, uint32 present, RDBOOL delta)
+process_polyline(rdcConnection conn, STREAM s, POLYLINE_ORDER * os, uint32 present, RDCBOOL delta)
 {
 	int index, next, data;
 	uint8 flags = 0;
-	RDPen pen;
-	RDPoint*points;
+	PEN pen;
+	POINT *points;
 
 	if (present & 0x01)
 		rdp_in_coord(s, &os->x, delta);
@@ -686,8 +686,8 @@ process_polyline(RDConnectionRef conn, RDStreamRef s, POLYLINE_ORDER * os, uint3
 		return;
 	}
 
-	points = (RDPoint*) xmalloc((os->lines + 1) * sizeof(RDPoint));
-	memset(points, 0, (os->lines + 1) * sizeof(RDPoint));
+	points = (POINT *) xmalloc((os->lines + 1) * sizeof(POINT));
+	memset(points, 0, (os->lines + 1) * sizeof(POINT));
 
 	points[0].x = os->x;
 	points[0].y = os->y;
@@ -720,7 +720,7 @@ process_polyline(RDConnectionRef conn, RDStreamRef s, POLYLINE_ORDER * os, uint3
 
 /* Process an ellipse order */
 static void
-process_ellipse(RDConnectionRef conn, RDStreamRef s, ELLIPSE_ORDER * os, uint32 present, RDBOOL delta)
+process_ellipse(rdcConnection conn, STREAM s, ELLIPSE_ORDER * os, uint32 present, RDCBOOL delta)
 {
 	if (present & 0x01)
 		rdp_in_coord(s, &os->left, delta);
@@ -752,7 +752,7 @@ process_ellipse(RDConnectionRef conn, RDStreamRef s, ELLIPSE_ORDER * os, uint32 
 
 /* Process an ellipse2 order */
 static void
-process_ellipse2(RDConnectionRef conn, RDStreamRef s, ELLIPSE2_ORDER * os, uint32 present, RDBOOL delta)
+process_ellipse2(rdcConnection conn, STREAM s, ELLIPSE2_ORDER * os, uint32 present, RDCBOOL delta)
 {
 	if (present & 0x0001)
 		rdp_in_coord(s, &os->left, delta);
@@ -790,7 +790,7 @@ process_ellipse2(RDConnectionRef conn, RDStreamRef s, ELLIPSE2_ORDER * os, uint3
 
 /* Process a text order */
 static void
-process_text2(RDConnectionRef conn, RDStreamRef s, TEXT2_ORDER * os, uint32 present, RDBOOL delta)
+process_text2(rdcConnection conn, STREAM s, TEXT2_ORDER * os, uint32 present, RDCBOOL delta)
 {
 	int i;
 
@@ -868,9 +868,9 @@ process_text2(RDConnectionRef conn, RDStreamRef s, TEXT2_ORDER * os, uint32 pres
 
 /* Process a raw bitmap cache order */
 static void
-process_raw_bmpcache(RDConnectionRef conn, RDStreamRef s)
+process_raw_bmpcache(rdcConnection conn, STREAM s)
 {
-	RDBitmapRef bitmap;
+	HBITMAP bitmap;
 	uint16 cache_idx, bufsize;
 	uint8 cache_id, width, height, bpp, Bpp;
 	uint8 *data, *inverted;
@@ -901,9 +901,9 @@ process_raw_bmpcache(RDConnectionRef conn, RDStreamRef s)
 
 /* Process a bitmap cache order */
 static void
-process_bmpcache(RDConnectionRef conn, RDStreamRef s)
+process_bmpcache(rdcConnection conn, STREAM s)
 {
-	RDBitmapRef bitmap;
+	HBITMAP bitmap;
 	uint16 cache_idx, size;
 	uint8 cache_id, width, height, bpp, Bpp;
 	uint8 *data, *bmpdata;
@@ -957,9 +957,9 @@ process_bmpcache(RDConnectionRef conn, RDStreamRef s)
 
 /* Process a bitmap cache v2 order */
 static void
-process_bmpcache2(RDConnectionRef conn, RDStreamRef s, uint16 flags, RDBOOL compressed)
+process_bmpcache2(rdcConnection conn, STREAM s, uint16 flags, RDCBOOL compressed)
 {
-	RDBitmapRef bitmap;
+	HBITMAP bitmap;
 	int y;
 	uint8 cache_id, cache_idx_low, width, height, Bpp;
 	uint16 cache_idx, bufsize;
@@ -1037,18 +1037,18 @@ process_bmpcache2(RDConnectionRef conn, RDStreamRef s, uint16 flags, RDBOOL comp
 
 /* Process a colourmap cache order */
 static void
-process_colcache(RDConnectionRef conn, RDStreamRef s)
+process_colcache(rdcConnection conn, STREAM s)
 {
-	RDColorEntry *entry;
-	RDColorMap map;
-	RDColorMapRef hmap;
+	COLOURENTRY *entry;
+	COLOURMAP map;
+	HCOLOURMAP hmap;
 	uint8 cache_id;
 	int i;
 
 	in_uint8(s, cache_id);
 	in_uint16_le(s, map.ncolours);
 
-	map.colours = (RDColorEntry *) xmalloc(sizeof(RDColorEntry) * map.ncolours);
+	map.colours = (COLOURENTRY *) xmalloc(sizeof(COLOURENTRY) * map.ncolours);
 
 	for (i = 0; i < map.ncolours; i++)
 	{
@@ -1071,9 +1071,9 @@ process_colcache(RDConnectionRef conn, RDStreamRef s)
 
 /* Process a font cache order */
 static void
-process_fontcache(RDConnectionRef conn, RDStreamRef s)
+process_fontcache(rdcConnection conn, STREAM s)
 {
-	RDGlyphRef bitmap;
+	HGLYPH bitmap;
 	uint8 font, nglyphs;
 	uint16 character, offset, baseline, width, height;
 	int i, datasize;
@@ -1102,7 +1102,7 @@ process_fontcache(RDConnectionRef conn, RDStreamRef s)
 
 /* Process a secondary order */
 static void
-process_secondary_order(RDConnectionRef conn, RDStreamRef s)
+process_secondary_order(rdcConnection conn, STREAM s)
 {
 	/* The length isn't calculated correctly by the server.
 	 * For very compact orders the length becomes negative
@@ -1153,13 +1153,13 @@ process_secondary_order(RDConnectionRef conn, RDStreamRef s)
 
 /* Process an order PDU */
 void
-process_orders(RDConnectionRef conn, RDStreamRef s, uint16 num_orders)
+process_orders(rdcConnection conn, STREAM s, uint16 num_orders)
 {
 	RDP_ORDER_STATE *os = &conn->orderState;
 	uint32 present;
 	uint8 order_flags;
 	int size, processed = 0;
-	RDBOOL delta;
+	RDCBOOL delta;
 
 	while (processed < num_orders)
 	{
@@ -1296,7 +1296,7 @@ process_orders(RDConnectionRef conn, RDStreamRef s, uint16 num_orders)
 
 /* Reset order state */
 void
-reset_order_state(RDConnectionRef conn)
+reset_order_state(rdcConnection conn)
 {
 	memset(&conn->orderState, 0, sizeof(conn->orderState));
 	conn->orderState.order_type = RDP_ORDER_PATBLT;

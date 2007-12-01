@@ -23,15 +23,15 @@
 
 
 void
-rdp5_process(RDConnectionRef conn, RDStreamRef s)
+rdp5_process(rdcConnection conn, STREAM s)
 {
 	uint16 length, count, x, y;
 	uint8 type, ctype;
 	uint8 *next;
 
 	uint32 roff, rlen;
-	RDStream *ns = &(conn->mppcDict.ns);
-	RDStream *ts;
+	struct stream *ns = &(conn->mppcDict.ns);
+	struct stream *ts;
 
 #if 0
 	printf("RDP5 data:\n");
@@ -101,7 +101,7 @@ rdp5_process(RDConnectionRef conn, RDStreamRef s)
 				in_uint16_le(ts, x);
 				in_uint16_le(ts, y);
 				if (s_check(ts))
-					ui_move_pointer(conn, x, y);
+					ui_move_pointer(x, y);
 				break;
 			case 9: /* color pointer */
 				process_colour_pointer_pdu(conn, ts);

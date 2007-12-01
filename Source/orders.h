@@ -76,7 +76,7 @@ typedef struct _PATBLT_ORDER
 	uint8 opcode;
 	uint32 bgcolour;
 	uint32 fgcolour;
-	RDBrush brush;
+	BRUSH brush;
 
 }
 PATBLT_ORDER;
@@ -103,7 +103,7 @@ typedef struct _LINE_ORDER
 	sint16 endy;
 	uint32 bgcolour;
 	uint8 opcode;
-	RDPen pen;
+	PEN pen;
 
 }
 LINE_ORDER;
@@ -144,7 +144,7 @@ typedef struct _TRIBLT_ORDER
 	sint16 srcy;
 	uint32 bgcolour;
 	uint32 fgcolour;
-	RDBrush brush;
+	BRUSH brush;
 	uint16 cache_idx;
 	uint16 unknown;
 
@@ -191,7 +191,7 @@ typedef struct _POLYGON2_ORDER
 	uint8 fillmode;
 	uint32 bgcolour;
 	uint32 fgcolour;
-	RDBrush brush;
+	BRUSH brush;
 	uint8 npoints;
 	uint8 datasize;
 	uint8 data[MAX_DATA];
@@ -233,7 +233,7 @@ typedef struct _ELLIPSE2_ORDER
 	sint16 bottom;
 	uint8 opcode;
 	uint8 fillmode;
-	RDBrush brush;
+	BRUSH brush;
 	uint32 bgcolour;
 	uint32 fgcolour;
 
@@ -258,7 +258,7 @@ typedef struct _TEXT2_ORDER
 	sint16 boxtop;
 	sint16 boxright;
 	sint16 boxbottom;
-	RDBrush brush;
+	BRUSH brush;
 	sint16 x;
 	sint16 y;
 	uint8 length;
@@ -270,7 +270,7 @@ TEXT2_ORDER;
 typedef struct _RDP_ORDER_STATE
 {
 	uint8 order_type;
-	RDBounds bounds;
+	BOUNDS bounds;
 	
 	DESTBLT_ORDER destblt;
 	PATBLT_ORDER patblt;
@@ -362,7 +362,7 @@ RDP_FONTCACHE_ORDER;
 typedef struct _RDP_COLCACHE_ORDER
 {
 	uint8 cache_id;
-	RDColorMap map;
+	COLOURMAP map;
 
 }
 RDP_COLCACHE_ORDER;

@@ -16,10 +16,11 @@
 */
 
 #import "CRDServersColumn.h"
+#import "AppController.h" // to suppress a 'method not found' warning
 
 @implementation CRDServersColumn
 
-- (id)dataCellForRow:(int)row
+- (id) dataCellForRow:(int)row
 {
 	id delegate = [[self tableView] delegate];
 	

@@ -15,46 +15,67 @@
 	Fifth Floor, Boston, MA 02110-1301 USA
 */
 
-// Purpose: Subclass of NSApplication so that command+key can be interpreted as windows+key and sent to server.
+// Purpose: Subclass of NSApplication so that command+key can be interpreted
+//			as windows+key and sent to server. Additionally, the mouse is tracked
+//			to allow the menu bar to be unhidden during fullscreeen
 
 #import "CRDApplication.h"
 
 #import "AppController.h"
-#import "CRDSession.h"
-#import "CRDSessionView.h"
+#import "RDInstance.h"
+#import "RDCView.h"
+#import "CRDFullScreenWindow.h"
 
 @implementation CRDApplication
 
 - (void)sendEvent:(NSEvent *)ev
 {
-	if ( ([ev type] == NSKeyDown) && [[self menu] performKeyEquivalent:ev])
-		return;
-		
-	NSResponder *forwardEventTo = ([[self delegate] application:self shouldForwardEvent:ev]);
+	// This could be optimized by lazy checking of viewIsFocused, and v and/or changing
+	//	some to use IB connections
+	CRDFullScreenWindow *fullScreenWindow = [g_appController fullScreenWindow];
+	RDInstance *inst = [g_appController viewedServer];
+	RDCView *v = [inst view];
+	BOOL viewIsFocused = (v != nil) && [[v window] isKeyWindow] && [[v window] isMainWindow] && 
+			([[v window] firstResponder] == v);
+	NSEventType eventType = [ev type];
 	
-	if ( (forwardEventTo != nil) && [forwardEventTo tryToPerform:[CRDApplication selectorForEvent:ev] with:ev])
-		return;
-
-	[super sendEvent:ev];
-}
-
-
-+ (SEL)selectorForEvent:(NSEvent *)ev
-{
-	switch ([ev type])
+	switch (eventType)
 	{
 		case NSKeyDown:	
-			return @selector(keyDown:);
-
+			if (viewIsFocused)
+			{
+				if (![[self menu] performKeyEquivalent:ev])
+					[v keyDown:ev];
+				
+				return;
+			}
+			break;
+			
 		case NSKeyUp:
-			return @selector(keyUp:);
-
+			if (viewIsFocused)
+			{
+				[v keyUp:ev];
+				return;
+			}
+			
+			break;
+			
 		case NSFlagsChanged:
-			return @selector(flagsChanged:);
+			if (viewIsFocused)
+			{
+				[v flagsChanged:ev];
+				return;
+			}
+			
+			break;
 			
 		default:
-			return NULL;
+			break;
 	}
+	
+	
+    [super sendEvent:ev];
 }
+
 
 @end

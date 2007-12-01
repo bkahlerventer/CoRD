@@ -25,10 +25,10 @@
 */
 
 #import "CRDServerList.h"
-#import "CRDShared.h"
+#import "miscellany.h"
 #import "AppController.h"
 #import "CRDServerCell.h"
-#import "CRDSession.h"
+#import "RDInstance.h"
 
 
 // Start is top, end is bottom
@@ -91,9 +91,10 @@
 	
 	[self lockFocus];	
 	NSRectClip(drawRect);
-	CRDDrawVerticalGradient(bottomColor, topColor, drawRect);
-	CRDDrawHorizontalLine([bottomColor blendedColorWithFraction:0.6 ofColor:topColor], 
-			NSMakePoint(drawRect.origin.x, drawRect.origin.y), drawRect.size.width);
+	draw_vertical_gradient(topColor, bottomColor, drawRect);
+	draw_line([bottomColor blendedColorWithFraction:0.6 ofColor:topColor], 
+			NSMakePoint(drawRect.origin.x, drawRect.origin.y),
+			NSMakePoint(drawRect.origin.x + drawRect.size.width, drawRect.origin.y ));
 	[self unlockFocus];
 }
 
@@ -121,21 +122,16 @@
 
 - (void)selectRow:(int)index
 {
-	int oldSelection = selectedRow, newSelection = [[self delegate] tableView:self shouldSelectRow:index] ? index : -1;
-		
-	if (newSelection != selectedRow)
-		[[self delegate] tableViewSelectionWillChange:self];
-		
-	selectedRow = newSelection;
+	int oldSelection = selectedRow;
+	selectedRow = [[self delegate] tableView:self shouldSelectRow:index] ? index : -1;
 	
 	// Bit hacky, but works better than calling super (this way, we control the notification)
 	_selectedRows = [[NSIndexSet indexSetWithIndex:selectedRow] mutableCopy];
 	
 	[self setNeedsDisplay:YES];
 	
-	if (oldSelection != selectedRow)
+	if (  (oldSelection != selectedRow) )
 		[[NSNotificationCenter defaultCenter] postNotificationName:NSTableViewSelectionDidChangeNotification object:self];	
-	
 }
 
 - (void)deselectRow:(int)rowIndex
@@ -177,7 +173,7 @@
 		return nil;
 	
 	NSRect rowRect = [self rectOfRow:row];	
-	NSImage *dragImage = [[[NSImage alloc] initWithSize:rowRect.size] autorelease];
+	NSImage *dragImage = [[NSImage alloc] initWithSize:rowRect.size];
 	[dragImage setFlipped:YES];
 	
 	[dragImage lockFocus];
@@ -189,23 +185,13 @@
 		
 		BOOL highlighted = [[self cellForRow:row] isHighlighted];
 		[[self cellForRow:row] setHighlighted:NO];
-		[[self cellForRow:row] drawWithFrame:CRDRectFromSize([dragImage size]) inView:nil];
+		[[self cellForRow:row] drawWithFrame:RECT_FROM_SIZE(rowRect.size) inView:nil];
 		[[self cellForRow:row] setHighlighted:highlighted];
 		
 	} [dragImage unlockFocus];
 	
-	// Get it into a 60% opaque image. xxx: This is ugly.
-	NSImage *dragImage2 = [[NSImage alloc] initWithSize:rowRect.size];
-	[dragImage2 lockFocus];
-	{
-		NSAffineTransform *xform = [NSAffineTransform transform];
-		[xform translateXBy:0.0 yBy:rowRect.size.height];
-		[xform scaleXBy:1.0 yBy:-1.0];
-		[xform concat]; 
-		[dragImage drawAtPoint:NSZeroPoint fromRect:(NSRect){NSZeroPoint, [dragImage size]} operation:NSCompositeCopy fraction:0.6];
-	} [dragImage2 unlockFocus];
 
-	return [dragImage2 autorelease];
+	return [dragImage autorelease];
 }
 
 - (BOOL)canDragRowsWithIndexes:(NSIndexSet *)rowIndexes atPoint:(NSPoint)mouseDownPoint
@@ -416,7 +402,7 @@
 
 - (NSString *)pasteboardDataType:(NSPasteboard *)draggingPasteboard
 {
-	NSArray *supportedTypes = [NSArray arrayWithObjects:CRDRowIndexPboardType,
+	NSArray *supportedTypes = [NSArray arrayWithObjects:SAVED_SERVER_DRAG_TYPE,
 			NSFilenamesPboardType, NSFilesPromisePboardType, nil];
 			
 	return [draggingPasteboard availableTypeFromArray:supportedTypes];
@@ -433,7 +419,7 @@
 	
 	if (type == nil)
 		return NSDragOperationNone;
-	if ([type isEqualToString:CRDRowIndexPboardType])
+	if ([type isEqualToString:SAVED_SERVER_DRAG_TYPE])
 		return NSDragOperationMove;
 	else
 		return NSDragOperationCopy;

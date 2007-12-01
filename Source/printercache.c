@@ -36,7 +36,7 @@
 #import <string.h>
 #import "rdesktop.h"
 
-static RDBOOL
+static RDCBOOL
 printercache_mkdir(char *base, char *printer)
 {
 	char *path;
@@ -72,7 +72,7 @@ printercache_mkdir(char *base, char *printer)
 	return True;
 }
 
-static RDBOOL
+static RDCBOOL
 printercache_unlink_blob(char *printer)
 {
 	char *path;
@@ -109,7 +109,7 @@ printercache_unlink_blob(char *printer)
 }
 
 
-static RDBOOL
+static RDCBOOL
 printercache_rename_blob(char *printer, char *new_printer)
 {
 	char *printer_path;
@@ -229,7 +229,7 @@ printercache_save_blob(char *printer_name, uint8 * data, uint32 length)
 }
 
 void
-printercache_process(RDStreamRef s)
+printercache_process(STREAM s)
 {
 	uint32 type, printer_length, driver_length, printer_unicode_length, blob_length;
 	char device_name[9], printer[256], driver[256];

@@ -41,8 +41,8 @@
 #endif
 
 /* Initialise TCP transport data packet */
-RDStreamRef
-tcp_init(RDConnectionRef conn, uint32 maxlen)
+STREAM
+tcp_init(rdcConnection conn, uint32 maxlen)
 {
 	if (maxlen > conn->outStream.size)
 	{
@@ -57,7 +57,7 @@ tcp_init(RDConnectionRef conn, uint32 maxlen)
 
 /* Send TCP transport data packet */
 void
-tcp_send(RDConnectionRef conn, RDStreamRef s)
+tcp_send(rdcConnection conn, STREAM s)
 {	
 	NSOutputStream *os = conn->outputStream;
 	
@@ -74,8 +74,8 @@ tcp_send(RDConnectionRef conn, RDStreamRef s)
 }
 
 /* Receive a message on the TCP layer */
-RDStreamRef
-tcp_recv(RDConnectionRef conn, RDStreamRef s, uint32 length)
+STREAM
+tcp_recv(rdcConnection conn, STREAM s, uint32 length)
 {
 	NSInputStream *is = conn->inputStream;
 	unsigned int new_length, end_offset, p_offset;
@@ -129,8 +129,8 @@ tcp_recv(RDConnectionRef conn, RDStreamRef s, uint32 length)
 }
 
 /* Establish a connection on the TCP layer */
-RDBOOL
-tcp_connect(RDConnectionRef conn, const char *server)
+RDCBOOL
+tcp_connect(rdcConnection conn, const char *server)
 {
 	NSInputStream *is = nil;
 	NSOutputStream *os = nil;
@@ -160,9 +160,9 @@ tcp_connect(RDConnectionRef conn, const char *server)
 	//	letting NSOutputStream block later when we do the first write:)
 	time_t start = time(NULL);
 	int timedOut = False;
-	while (![os hasSpaceAvailable] && !timedOut && (conn->errorCode != ConnectionErrorCanceled) )
+	while (![os hasSpaceAvailable] && !timedOut && conn->errorCode != ConnectionErrorCanceled)
 	{
-		usleep(1000); // one millisecond
+		usleep(1000); // sleep for a millisecond
 		timedOut = (time(NULL) - start > TIMOUT_LENGTH);
 	}
 	
@@ -176,33 +176,42 @@ tcp_connect(RDConnectionRef conn, const char *server)
 		return False;
 	}
 	
-	conn->inputStream = [is retain];
-	conn->outputStream = [os retain];
+	[is retain];
+	[os retain];
+	
+	
+	
+	conn->host = host;
+	conn->inputStream = is;
+	conn->outputStream = os;
 	
 
 	conn->inStream.size = 4096;
-	conn->inStream.data = xmalloc(conn->inStream.size);
+	conn->inStream.data = (uint8 *) xmalloc(conn->inStream.size);
 
 	conn->outStream.size = 4096;
-	conn->outStream.data = xmalloc(conn->outStream.size);
+	conn->outStream.data = (uint8 *) xmalloc(conn->outStream.size);
 
 	return True;
 }
 
 /* Disconnect on the TCP layer */
 void
-tcp_disconnect(RDConnectionRef conn)
+tcp_disconnect(rdcConnection conn)
 {
-	[conn->inputStream release];
-	[conn->outputStream release];
-	conn->inputStream = NULL;
-	conn->outputStream = NULL;
-	[conn->inputStream close];
-	[conn->outputStream close];
+	NSInputStream *is;
+	NSOutputStream *os;
+	is = conn->inputStream;
+	os = conn->outputStream;
+	
+	[is close];
+	[os close];
+	[is release];
+	[os release];
 }
 
 char *
-tcp_get_address(RDConnectionRef conn)
+tcp_get_address(rdcConnection conn)
 {
 	NSOutputStream *os = conn->outputStream;
 	CFWriteStreamRef stream;
@@ -224,40 +233,4 @@ tcp_get_address(RDConnectionRef conn)
     else
         strcpy(ipaddr, "127.0.0.1");
     return ipaddr;
-}
-
-/* reset the state of the tcp layer */
-/* Support for Session Directory */
-void
-tcp_reset_state(RDConnectionRef conn)
-{
-	/* Clear the incoming stream */
-	[(id)conn->inputStream release];
-	conn->inputStream = NULL;
-	if (conn->inStream.data != NULL)
-		xfree(conn->inStream.data);
-	conn->inStream.p = NULL;
-	conn->inStream.end = NULL;
-	conn->inStream.data = NULL;
-	conn->inStream.size = 0;
-	conn->inStream.iso_hdr = NULL;
-	conn->inStream.mcs_hdr = NULL;
-	conn->inStream.sec_hdr = NULL;
-	conn->inStream.rdp_hdr = NULL;
-	conn->inStream.channel_hdr = NULL;
-
-	/* Clear the outgoing stream */
-	[(id)conn->outputStream release];
-	conn->outputStream = NULL;
-	if (conn->outStream.data != NULL)
-		xfree(conn->outStream.data);
-	conn->outStream.p = NULL;
-	conn->outStream.end = NULL;
-	conn->outStream.data = NULL;
-	conn->outStream.size = 0;
-	conn->outStream.iso_hdr = NULL;
-	conn->outStream.mcs_hdr = NULL;
-	conn->outStream.sec_hdr = NULL;
-	conn->outStream.rdp_hdr = NULL;
-	conn->outStream.channel_hdr = NULL;
 }

@@ -34,11 +34,11 @@
  */
 #define BUMP_COUNT 40
 
-static void cache_bump_bitmap(RDConnectionRef conn, uint8 id, uint16 idx, int bump);
-static void cache_evict_bitmap(RDConnectionRef conn, uint8 id);
+static void cache_bump_bitmap(rdcConnection conn, uint8 id, uint16 idx, int bump);
+static void cache_evict_bitmap(rdcConnection conn, uint8 id);
 /* Setup the bitmap cache lru/mru linked list */
 void
-cache_rebuild_bmpcache_linked_list(RDConnectionRef conn, uint8 id, sint16 * idx, int count)
+cache_rebuild_bmpcache_linked_list(rdcConnection conn, uint8 id, sint16 * idx, int count)
 {
 	int n = count, c = 0;
 	sint16 n_idx;
@@ -84,7 +84,7 @@ cache_rebuild_bmpcache_linked_list(RDConnectionRef conn, uint8 id, sint16 * idx,
 
 /* Move a bitmap to a new position in the linked list. */
 static void
-cache_bump_bitmap(RDConnectionRef conn, uint8 id, uint16 idx, int bump)
+cache_bump_bitmap(rdcConnection conn, uint8 id, uint16 idx, int bump)
 {
 	int p_idx, n_idx, n;
 
@@ -150,7 +150,7 @@ cache_bump_bitmap(RDConnectionRef conn, uint8 id, uint16 idx, int bump)
 
 /* Evict the least-recently used bitmap from the cache */
 static void
-cache_evict_bitmap(RDConnectionRef conn, uint8 id)
+cache_evict_bitmap(rdcConnection conn, uint8 id)
 {
 	uint16 idx;
 	int n_idx;
@@ -160,7 +160,7 @@ cache_evict_bitmap(RDConnectionRef conn, uint8 id)
 
 	idx = conn->bmpcacheLru[id];
 	n_idx = conn->bmpcache[id][idx].next;
-	DEBUG_RDP5(("evict bitmap: id=%d idx=%d n_idx=%d bmp=0x%p\n", id, idx, n_idx,
+	DEBUG_RDP5(("evict bitmap: id=%d idx=%d n_idx=%d bmp=0x%x\n", id, idx, n_idx,
 		    conn->bmpcache[id][idx].bitmap));
 
 	ui_destroy_bitmap(conn->bmpcache[id][idx].bitmap);
@@ -174,8 +174,8 @@ cache_evict_bitmap(RDConnectionRef conn, uint8 id)
 }
 
 /* Retrieve a bitmap from the cache */
-RDBitmapRef
-cache_get_bitmap(RDConnectionRef conn, uint8 id, uint16 idx)
+HBITMAP
+cache_get_bitmap(rdcConnection conn, uint8 id, uint16 idx)
 {
 	if ((id < NUM_ELEMENTS(conn->bmpcache)) && (idx < NUM_ELEMENTS(conn->bmpcache[0])))
 	{
@@ -198,9 +198,9 @@ cache_get_bitmap(RDConnectionRef conn, uint8 id, uint16 idx)
 
 /* Store a bitmap in the cache */
 void
-cache_put_bitmap(RDConnectionRef conn, uint8 id, uint16 idx, RDBitmapRef bitmap)
+cache_put_bitmap(rdcConnection conn, uint8 id, uint16 idx, HBITMAP bitmap)
 {
-	RDBitmapRef old;
+	HBITMAP old;
 
 	if ((id < NUM_ELEMENTS(conn->bmpcache)) && (idx < NUM_ELEMENTS(conn->bmpcache[0])))
 	{
@@ -234,7 +234,7 @@ cache_put_bitmap(RDConnectionRef conn, uint8 id, uint16 idx, RDBitmapRef bitmap)
 
 /* Updates the persistent bitmap cache MRU information on exit */
 void
-cache_save_state(RDConnectionRef conn)
+cache_save_state(rdcConnection conn)
 {
 	uint32 id = 0, t = 0;
 	int idx;
@@ -254,10 +254,10 @@ cache_save_state(RDConnectionRef conn)
 }
 
 /* Retrieve a glyph from the font cache */
-RDFontGlyph *
-cache_get_font(RDConnectionRef conn, uint8 font, uint16 character)
+FONTGLYPH *
+cache_get_font(rdcConnection conn, uint8 font, uint16 character)
 {
-	RDFontGlyph *glyph;
+	FONTGLYPH *glyph;
 
 	if ((font < NUM_ELEMENTS(conn->fontCache)) && (character < NUM_ELEMENTS(conn->fontCache[0])))
 	{
@@ -272,11 +272,10 @@ cache_get_font(RDConnectionRef conn, uint8 font, uint16 character)
 
 /* Store a glyph in the font cache */
 void
-cache_put_font(RDConnectionRef conn, uint8 font, uint16 character, uint16 offset,
-	       uint16 baseline, uint16 width, uint16 height, RDGlyphRef pixmap)
+cache_put_font(rdcConnection conn, uint8 font, uint16 character, uint16 offset,
+	       uint16 baseline, uint16 width, uint16 height, HGLYPH pixmap)
 {
-	//debug: printf("Putting shit in font cache at %d:%d and pmap %p\n", font, character, pixmap);
-	RDFontGlyph *glyph;
+	FONTGLYPH *glyph;
 
 	if ((font < NUM_ELEMENTS(conn->fontCache)) && (character < NUM_ELEMENTS(conn->fontCache[0])))
 	{
@@ -297,10 +296,10 @@ cache_put_font(RDConnectionRef conn, uint8 font, uint16 character, uint16 offset
 }
 
 /* Retrieve a text item from the cache */
-RDDataBlob *
-cache_get_text(RDConnectionRef conn, uint8 cache_id)
+DATABLOB *
+cache_get_text(rdcConnection conn, uint8 cache_id)
 {
-	RDDataBlob *text;
+	DATABLOB *text;
 
 	text = &conn->textCache[cache_id];
 	return text;
@@ -308,9 +307,9 @@ cache_get_text(RDConnectionRef conn, uint8 cache_id)
 
 /* Store a text item in the cache */
 void
-cache_put_text(RDConnectionRef conn, uint8 cache_id, void *data, int length)
+cache_put_text(rdcConnection conn, uint8 cache_id, void *data, int length)
 {
-	RDDataBlob *text;
+	DATABLOB *text;
 
 	text = &conn->textCache[cache_id];
 	if (text->data != NULL)
@@ -322,7 +321,7 @@ cache_put_text(RDConnectionRef conn, uint8 cache_id, void *data, int length)
 
 /* Retrieve desktop data from the cache */
 uint8 *
-cache_get_desktop(RDConnectionRef conn, uint32 offset, int cx, int cy, int bytes_per_pixel)
+cache_get_desktop(rdcConnection conn, uint32 offset, int cx, int cy, int bytes_per_pixel)
 {
 	int length = cx * cy * bytes_per_pixel;
 
@@ -340,7 +339,7 @@ cache_get_desktop(RDConnectionRef conn, uint32 offset, int cx, int cy, int bytes
 
 /* Store desktop data in the cache */
 void
-cache_put_desktop(RDConnectionRef conn, uint32 offset, int cx, int cy, int scanline, int bytes_per_pixel, uint8 * data)
+cache_put_desktop(rdcConnection conn, uint32 offset, int cx, int cy, int scanline, int bytes_per_pixel, uint8 * data)
 {
 	int length = cx * cy * bytes_per_pixel;
 
@@ -364,10 +363,10 @@ cache_put_desktop(RDConnectionRef conn, uint32 offset, int cx, int cy, int scanl
 }
 
 /* Retrieve cursor from cache */
-RDCursorRef
-cache_get_cursor(RDConnectionRef conn, uint16 cache_idx)
+HCURSOR
+cache_get_cursor(rdcConnection conn, uint16 cache_idx)
 {
-	RDCursorRef cursor;
+	HCURSOR cursor;
 
 	if (cache_idx < NUM_ELEMENTS(conn->cursorCache))
 	{
@@ -382,9 +381,9 @@ cache_get_cursor(RDConnectionRef conn, uint16 cache_idx)
 
 /* Store cursor in cache */
 void
-cache_put_cursor(RDConnectionRef conn, uint16 cache_idx, RDCursorRef cursor)
+cache_put_cursor(rdcConnection conn, uint16 cache_idx, HCURSOR cursor)
 {
-	RDCursorRef old;
+	HCURSOR old;
 
 	if (cache_idx < NUM_ELEMENTS(conn->cursorCache))
 	{

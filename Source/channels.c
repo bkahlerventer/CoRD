@@ -21,11 +21,11 @@
 
 #import "rdesktop.h"
 
-#define MAX_CHANNELS                6
-#define CHANNEL_CHUNK_LENGTH        1600
-#define CHANNEL_FLAG_FIRST		    0x01
-#define CHANNEL_FLAG_LAST		    0x02
-#define CHANNEL_FLAG_SHOW_PROTOCOL  0x10
+#define MAX_CHANNELS			4
+#define CHANNEL_CHUNK_LENGTH		1600
+#define CHANNEL_FLAG_FIRST		0x01
+#define CHANNEL_FLAG_LAST		0x02
+#define CHANNEL_FLAG_SHOW_PROTOCOL	0x10
 
 /* FIXME: We should use the information in TAG_SRV_CHANNELS to map RDP5
    channels to MCS channels.
@@ -37,10 +37,10 @@
    ..followed by uint16les for the other channels.
 */
 
-RDVirtualChannel *
-channel_register(RDConnectionRef conn, char *name, uint32 flags, void (*callback) (RDConnectionRef, RDStreamRef))
+VCHANNEL *
+channel_register(rdcConnection conn, char *name, uint32 flags, void (*callback) (rdcConnection, STREAM))
 {
-	RDVirtualChannel *channel;
+	VCHANNEL *channel;
 
 	if (!conn->useRdp5)
 		return NULL;
@@ -60,10 +60,10 @@ channel_register(RDConnectionRef conn, char *name, uint32 flags, void (*callback
 	return channel;
 }
 
-RDStreamRef
-channel_init(RDConnectionRef conn, RDVirtualChannel * channel, uint32 length)
+STREAM
+channel_init(rdcConnection conn, VCHANNEL * channel, uint32 length)
 {
-	RDStreamRef s;
+	STREAM s;
 
 	s = sec_init(conn, conn->useEncryption ? SEC_ENCRYPT : 0, length + 8);
 	s_push_layer(s, channel_hdr, 8);
@@ -71,7 +71,7 @@ channel_init(RDConnectionRef conn, RDVirtualChannel * channel, uint32 length)
 }
 
 void
-channel_send(RDConnectionRef conn, RDStreamRef s, RDVirtualChannel * channel)
+channel_send(rdcConnection conn, STREAM s, VCHANNEL * channel)
 {
 	uint32 length, flags;
 	uint32 thislength, remaining;
@@ -81,7 +81,7 @@ channel_send(RDConnectionRef conn, RDStreamRef s, RDVirtualChannel * channel)
 	s_pop_layer(s, channel_hdr);
 	length = s->end - s->p - 8;
 
-	DEBUG_CHANNEL(("channel_send, length = %d\n", length));
+	DEBUG_CLIPBOARD(("channel_send, length = %d\n", length));
 
 	thislength = MIN(length, CHANNEL_CHUNK_LENGTH);
 /* Note: In the original clipboard implementation, this number was
@@ -96,7 +96,7 @@ channel_send(RDConnectionRef conn, RDStreamRef s, RDVirtualChannel * channel)
 	out_uint32_le(s, length);
 	out_uint32_le(s, flags);
 	data = s->end = s->p + thislength;
-	DEBUG_CHANNEL(("Sending %d bytes with FLAG_FIRST\n", thislength));
+	DEBUG_CLIPBOARD(("Sending %d bytes with FLAG_FIRST\n", thislength));
 	sec_send_to_channel(conn, s, conn->useEncryption ? SEC_ENCRYPT : 0, channel->mcs_id);
 
 	/* subsequent segments copied (otherwise would have to generate headers backwards) */
@@ -108,7 +108,7 @@ channel_send(RDConnectionRef conn, RDStreamRef s, RDVirtualChannel * channel)
 		if (channel->flags & CHANNEL_OPTION_SHOW_PROTOCOL)
 			flags |= CHANNEL_FLAG_SHOW_PROTOCOL;
 
-		DEBUG_CHANNEL(("Sending %d bytes with flags %d\n", thislength, flags));
+		DEBUG_CLIPBOARD(("Sending %d bytes with flags %d\n", thislength, flags));
 
 		s = sec_init(conn, conn->useEncryption ? SEC_ENCRYPT : 0, thislength + 8);
 		out_uint32_le(s, length);
@@ -122,13 +122,13 @@ channel_send(RDConnectionRef conn, RDStreamRef s, RDVirtualChannel * channel)
 }
 
 void
-channel_process(RDConnectionRef conn, RDStreamRef s, uint16 mcs_channel)
+channel_process(rdcConnection conn, STREAM s, uint16 mcs_channel)
 {
 	uint32 length, flags;
 	uint32 thislength;
-	RDVirtualChannel *channel = NULL;
+	VCHANNEL *channel = NULL;
 	unsigned int i;
-	RDStreamRef in;
+	STREAM in;
 
 	for (i = 0; i < conn->numChannels; i++)
 	{

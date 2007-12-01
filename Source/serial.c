@@ -1,25 +1,3 @@
-/* -*- c-basic-offset: 8 -*-
-   rdesktop: A Remote Desktop Protocol client.
-
-   Copyright (C) Matthew Chapman 1999-2005
-   
-   This program is free software; you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
-   (at your option) any later version.
-   
-   This program is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
-
-   You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
-*/
-
-// This isn't used by CoRD (and won't be) but is included to assure that it builds
-
 #import <unistd.h>
 #import <fcntl.h>
 #import <termios.h>
@@ -150,21 +128,21 @@
 #define TIOCOUTQ FIONWRITE
 #endif
 
-static RDSerialDevice *
-get_serial_info(RDConnectionRef conn, NTHandle handle)
+static SERIAL_DEVICE *
+get_serial_info(rdcConnection conn, NTHANDLE handle)
 {
 	int index;
 
 	for (index = 0; index < RDPDR_MAX_DEVICES; index++)
 	{
 		if (handle == conn->rdpdrDevice[index].handle)
-			return (RDSerialDevice *) conn->rdpdrDevice[index].pdevice_data;
+			return (SERIAL_DEVICE *) conn->rdpdrDevice[index].pdevice_data;
 	}
 	return NULL;
 }
 
-static RDBOOL
-get_termios(RDSerialDevice * pser_inf, NTHandle serial_fd)
+static RDCBOOL
+get_termios(SERIAL_DEVICE * pser_inf, NTHANDLE serial_fd)
 {
 	speed_t speed;
 	struct termios *ptermios;
@@ -317,7 +295,7 @@ get_termios(RDSerialDevice * pser_inf, NTHandle serial_fd)
 }
 
 static void
-set_termios(RDSerialDevice * pser_inf, NTHandle serial_fd)
+set_termios(SERIAL_DEVICE * pser_inf, NTHANDLE serial_fd)
 {
 	speed_t speed;
 
@@ -515,9 +493,9 @@ set_termios(RDSerialDevice * pser_inf, NTHandle serial_fd)
 /* when it arrives to this function.              */
 /* :com1=/dev/ttyS0,com2=/dev/ttyS1 */
 int
-serial_enum_devices(RDConnectionRef conn, uint32 * id, char *optarg)
+serial_enum_devices(rdcConnection conn, uint32 * id, char *optarg)
 {
-	RDSerialDevice *pser_inf;
+	SERIAL_DEVICE *pser_inf;
 
 	char *pos = optarg;
 	char *pos2;
@@ -528,7 +506,7 @@ serial_enum_devices(RDConnectionRef conn, uint32 * id, char *optarg)
 	while ((pos = next_arg(optarg, ',')) && *id < RDPDR_MAX_DEVICES)
 	{
 		/* Init data structures for device */
-		pser_inf = (RDSerialDevice *) xmalloc(sizeof(RDSerialDevice));
+		pser_inf = (SERIAL_DEVICE *) xmalloc(sizeof(SERIAL_DEVICE));
 		pser_inf->ptermios = (struct termios *) xmalloc(sizeof(struct termios));
 		memset(pser_inf->ptermios, 0, sizeof(struct termios));
 		pser_inf->pold_termios = (struct termios *) xmalloc(sizeof(struct termios));
@@ -554,15 +532,15 @@ serial_enum_devices(RDConnectionRef conn, uint32 * id, char *optarg)
 	return count;
 }
 
-static NTStatus
-serial_create(RDConnectionRef conn, uint32 device_id, uint32 access, uint32 share_mode, uint32 disposition,
-	      uint32 flags_and_attributes, char *filename, NTHandle * handle)
+static NTSTATUS
+serial_create(rdcConnection conn, uint32 device_id, uint32 access, uint32 share_mode, uint32 disposition,
+	      uint32 flags_and_attributes, char *filename, NTHANDLE * handle)
 {
-	NTHandle serial_fd;
-	RDSerialDevice *pser_inf;
+	NTHANDLE serial_fd;
+	SERIAL_DEVICE *pser_inf;
 	struct termios *ptermios;
 
-	pser_inf = (RDSerialDevice *) conn->rdpdrDevice[device_id].pdevice_data;
+	pser_inf = (SERIAL_DEVICE *) conn->rdpdrDevice[device_id].pdevice_data;
 	ptermios = pser_inf->ptermios;
 	serial_fd = open(conn->rdpdrDevice[device_id].local_path, O_RDWR | O_NOCTTY | O_NONBLOCK);
 
@@ -611,8 +589,8 @@ serial_create(RDConnectionRef conn, uint32 device_id, uint32 access, uint32 shar
 	return STATUS_SUCCESS;
 }
 
-static NTStatus
-serial_close(RDConnectionRef conn, NTHandle handle)
+static NTSTATUS
+serial_close(rdcConnection conn, NTHANDLE handle)
 {
 	int i = get_device_index(conn, handle);
 	if (i >= 0)
@@ -623,11 +601,11 @@ serial_close(RDConnectionRef conn, NTHandle handle)
 	return STATUS_SUCCESS;
 }
 
-static NTStatus
-serial_read(RDConnectionRef conn, NTHandle handle, uint8 * data, uint32 length, uint32 offset, uint32 * result)
+static NTSTATUS
+serial_read(rdcConnection conn, NTHANDLE handle, uint8 * data, uint32 length, uint32 offset, uint32 * result)
 {
 	long timeout;
-	RDSerialDevice *pser_inf;
+	SERIAL_DEVICE *pser_inf;
 	struct termios *ptermios;
 #ifdef WITH_DEBUG_SERIAL
 	int bytes_inqueue;
@@ -682,10 +660,10 @@ serial_read(RDConnectionRef conn, NTHandle handle, uint8 * data, uint32 length, 
 	return STATUS_SUCCESS;
 }
 
-static NTStatus
-serial_write(RDConnectionRef conn, NTHandle handle, uint8 * data, uint32 length, uint32 offset, uint32 * result)
+static NTSTATUS
+serial_write(rdcConnection conn, NTHANDLE handle, uint8 * data, uint32 length, uint32 offset, uint32 * result)
 {
-	RDSerialDevice *pser_inf;
+	SERIAL_DEVICE *pser_inf;
 
 	pser_inf = get_serial_info(conn, handle);
 
@@ -699,13 +677,13 @@ serial_write(RDConnectionRef conn, NTHandle handle, uint8 * data, uint32 length,
 	return STATUS_SUCCESS;
 }
 
-static NTStatus
-serial_device_control(RDConnectionRef conn, NTHandle handle, uint32 request, RDStreamRef in, RDStreamRef out)
+static NTSTATUS
+serial_device_control(rdcConnection conn, NTHANDLE handle, uint32 request, STREAM in, STREAM out)
 {
 	int flush_mask, purge_mask;
 	uint32 result, modemstate;
 	uint8 immediate;
-	RDSerialDevice *pser_inf;
+	SERIAL_DEVICE *pser_inf;
 	struct termios *ptermios;
 
 	if ((request >> 16) != FILE_DEVICE_SERIAL_PORT)
@@ -946,13 +924,13 @@ serial_device_control(RDConnectionRef conn, NTHandle handle, uint32 request, RDS
 	return STATUS_SUCCESS;
 }
 
-RDBOOL
-serial_get_event(RDConnectionRef conn, NTHandle handle, uint32 * result)
+RDCBOOL
+serial_get_event(rdcConnection conn, NTHANDLE handle, uint32 * result)
 {
 	int index;
-	RDSerialDevice *pser_inf;
+	SERIAL_DEVICE *pser_inf;
 	int bytes;
-	RDBOOL ret = False;
+	RDCBOOL ret = False;
 
 	*result = 0;
 	index = get_device_index(conn, handle);
@@ -960,7 +938,7 @@ serial_get_event(RDConnectionRef conn, NTHandle handle, uint32 * result)
 		return False;
 
 #ifdef TIOCINQ
-	pser_inf = (RDSerialDevice *) conn->rdpdrDevice[index].pdevice_data;
+	pser_inf = (SERIAL_DEVICE *) conn->rdpdrDevice[index].pdevice_data;
 
 	ioctl(handle, TIOCINQ, &bytes);
 
@@ -1044,11 +1022,11 @@ serial_get_event(RDConnectionRef conn, NTHandle handle, uint32 * result)
 }
 
 /* Read timeout for a given file descripter (device) when adding fd's to select() */
-RDBOOL
-serial_get_timeout(RDConnectionRef conn, NTHandle handle, uint32 length, uint32 * timeout, uint32 * itv_timeout)
+RDCBOOL
+serial_get_timeout(rdcConnection conn, NTHANDLE handle, uint32 length, uint32 * timeout, uint32 * itv_timeout)
 {
 	int index;
-	RDSerialDevice *pser_inf;
+	SERIAL_DEVICE *pser_inf;
 
 	index = get_device_index(conn, handle);
 	if (index < 0)
@@ -1059,7 +1037,7 @@ serial_get_timeout(RDConnectionRef conn, NTHandle handle, uint32 length, uint32 
 		return False;
 	}
 
-	pser_inf = (RDSerialDevice *) conn->rdpdrDevice[index].pdevice_data;
+	pser_inf = (SERIAL_DEVICE *) conn->rdpdrDevice[index].pdevice_data;
 
 	*timeout =
 		pser_inf->read_total_timeout_multiplier * length +

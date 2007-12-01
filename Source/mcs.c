@@ -21,8 +21,8 @@
 #import "rdesktop.h"
 
 /* Parse an ASN.1 BER header */
-static RDBOOL
-ber_parse_header(RDStreamRef s, int tagval, int *length)
+static RDCBOOL
+ber_parse_header(STREAM s, int tagval, int *length)
 {
 	int tag, len;
 
@@ -57,7 +57,7 @@ ber_parse_header(RDStreamRef s, int tagval, int *length)
 
 /* Output an ASN.1 BER header */
 static void
-ber_out_header(RDStreamRef s, int tagval, int length)
+ber_out_header(STREAM s, int tagval, int length)
 {
 	if (tagval > 0xff)
 	{
@@ -79,7 +79,7 @@ ber_out_header(RDStreamRef s, int tagval, int length)
 
 /* Output an ASN.1 BER integer */
 static void
-ber_out_integer(RDStreamRef s, int value)
+ber_out_integer(STREAM s, int value)
 {
 	ber_out_header(s, BER_TAG_INTEGER, 2);
 	out_uint16_be(s, value);
@@ -87,7 +87,7 @@ ber_out_integer(RDStreamRef s, int value)
 
 /* Output a DOMAIN_PARAMS structure (ASN.1 BER) */
 static void
-mcs_out_domain_params(RDStreamRef s, int max_channels, int max_users, int max_tokens, int max_pdusize)
+mcs_out_domain_params(STREAM s, int max_channels, int max_users, int max_tokens, int max_pdusize)
 {
 	ber_out_header(s, MCS_TAG_DOMAIN_PARAMS, 32);
 	ber_out_integer(s, max_channels);
@@ -101,8 +101,8 @@ mcs_out_domain_params(RDStreamRef s, int max_channels, int max_users, int max_to
 }
 
 /* Parse a DOMAIN_PARAMS structure (ASN.1 BER) */
-static RDBOOL
-mcs_parse_domain_params(RDStreamRef s)
+static RDCBOOL
+mcs_parse_domain_params(STREAM s)
 {
 	int length;
 
@@ -114,11 +114,11 @@ mcs_parse_domain_params(RDStreamRef s)
 
 /* Send an MCS_CONNECT_INITIAL message (ASN.1 BER) */
 static void
-mcs_send_connect_initial(RDConnectionRef conn, RDStreamRef mcs_data)
+mcs_send_connect_initial(rdcConnection conn, STREAM mcs_data)
 {
 	int datalen = mcs_data->end - mcs_data->data;
 	int length = 9 + 3 * 34 + 4 + datalen;
-	RDStreamRef s;
+	STREAM s;
 
 	s = iso_init(conn, length + 5);
 
@@ -143,12 +143,12 @@ mcs_send_connect_initial(RDConnectionRef conn, RDStreamRef mcs_data)
 }
 
 /* Expect a MCS_CONNECT_RESPONSE message (ASN.1 BER) */
-static RDBOOL
-mcs_recv_connect_response(RDConnectionRef conn, RDStreamRef mcs_data)
+static RDCBOOL
+mcs_recv_connect_response(rdcConnection conn, STREAM mcs_data)
 {
 	uint8 result;
 	int length;
-	RDStreamRef s;
+	STREAM s;
 
 	s = iso_recv(conn, NULL);
 	if (s == NULL)
@@ -188,9 +188,9 @@ mcs_recv_connect_response(RDConnectionRef conn, RDStreamRef mcs_data)
 
 /* Send an EDrq message (ASN.1 PER) */
 static void
-mcs_send_edrq(RDConnectionRef conn)
+mcs_send_edrq(rdcConnection conn)
 {
-	RDStreamRef s;
+	STREAM s;
 
 	s = iso_init(conn, 5);
 
@@ -204,9 +204,9 @@ mcs_send_edrq(RDConnectionRef conn)
 
 /* Send an AUrq message (ASN.1 PER) */
 static void
-mcs_send_aurq(RDConnectionRef conn)
+mcs_send_aurq(rdcConnection conn)
 {
-	RDStreamRef s;
+	STREAM s;
 
 	s = iso_init(conn, 1);
 
@@ -217,11 +217,11 @@ mcs_send_aurq(RDConnectionRef conn)
 }
 
 /* Expect a AUcf message (ASN.1 PER) */
-static RDBOOL
-mcs_recv_aucf(RDConnectionRef conn)
+static RDCBOOL
+mcs_recv_aucf(rdcConnection conn)
 {
 	uint8 opcode, result;
-	RDStreamRef s;
+	STREAM s;
 
 	s = iso_recv(conn, NULL);
 	if (s == NULL)
@@ -249,9 +249,9 @@ mcs_recv_aucf(RDConnectionRef conn)
 
 /* Send a CJrq message (ASN.1 PER) */
 static void
-mcs_send_cjrq(RDConnectionRef conn, uint16 chanid)
+mcs_send_cjrq(rdcConnection conn, uint16 chanid)
 {
-	RDStreamRef s;
+	STREAM s;
 
 	DEBUG_RDP5(("Sending CJRQ for channel #%d\n", chanid));
 
@@ -266,11 +266,11 @@ mcs_send_cjrq(RDConnectionRef conn, uint16 chanid)
 }
 
 /* Expect a CJcf message (ASN.1 PER) */
-static RDBOOL
-mcs_recv_cjcf(RDConnectionRef conn)
+static RDCBOOL
+mcs_recv_cjcf(rdcConnection conn)
 {
 	uint8 opcode, result;
-	RDStreamRef s;
+	STREAM s;
 
 	s = iso_recv(conn, NULL);
 	if (s == NULL)
@@ -298,10 +298,10 @@ mcs_recv_cjcf(RDConnectionRef conn)
 }
 
 /* Initialise an MCS transport data packet */
-RDStreamRef
-mcs_init(RDConnectionRef conn, int length)
+STREAM
+mcs_init(rdcConnection conn, int length)
 {
-	RDStreamRef s;
+	STREAM s;
 
 	s = iso_init(conn, length + 8);
 	s_push_layer(s, mcs_hdr, 8);
@@ -311,7 +311,7 @@ mcs_init(RDConnectionRef conn, int length)
 
 /* Send an MCS transport data packet to a specific channel */
 void
-mcs_send_to_channel(RDConnectionRef conn, RDStreamRef s, uint16 channel)
+mcs_send_to_channel(rdcConnection conn, STREAM s, uint16 channel)
 {
 	uint16 length;
 
@@ -330,17 +330,17 @@ mcs_send_to_channel(RDConnectionRef conn, RDStreamRef s, uint16 channel)
 
 /* Send an MCS transport data packet to the global channel */
 void
-mcs_send(RDConnectionRef conn, RDStreamRef s)
+mcs_send(rdcConnection conn, STREAM s)
 {
 	mcs_send_to_channel(conn, s, MCS_GLOBAL_CHANNEL);
 }
 
 /* Receive an MCS transport data packet */
-RDStreamRef
-mcs_recv(RDConnectionRef conn, uint16 * channel, uint8 * rdpver)
+STREAM
+mcs_recv(rdcConnection conn, uint16 * channel, uint8 * rdpver)
 {
 	uint8 opcode, appid, length;
-	RDStreamRef s;
+	STREAM s;
 
 	s = iso_recv(conn, rdpver);
 	if (s == NULL)
@@ -368,8 +368,8 @@ mcs_recv(RDConnectionRef conn, uint16 * channel, uint8 * rdpver)
 }
 
 /* Establish a connection up to the MCS layer */
-RDBOOL
-mcs_connect(RDConnectionRef conn, const char *server, RDStreamRef mcs_data, char *username)
+RDCBOOL
+mcs_connect(rdcConnection conn, const char *server, STREAM mcs_data, char *username)
 {
 	unsigned int i;
 
@@ -408,58 +408,9 @@ mcs_connect(RDConnectionRef conn, const char *server, RDStreamRef mcs_data, char
 	return False;
 }
 
-/* Establish a connection up to the MCS layer */
-RDBOOL
-mcs_reconnect(RDConnectionRef conn, char *server, RDStreamRef mcs_data)
-{
-	unsigned int i;
-
-	if (!iso_reconnect(conn, server))
-		return False;
-
-	mcs_send_connect_initial(conn, mcs_data);
-	if (!mcs_recv_connect_response(conn, mcs_data))
-		goto error;
-
-	mcs_send_edrq(conn);
-
-	mcs_send_aurq(conn);
-	if (!mcs_recv_aucf(conn))
-		goto error;
-
-	mcs_send_cjrq(conn, conn->mcsUserid + MCS_USERCHANNEL_BASE);
-
-	if (!mcs_recv_cjcf(conn))
-		goto error;
-
-	mcs_send_cjrq(conn, MCS_GLOBAL_CHANNEL);
-	if (!mcs_recv_cjcf(conn))
-		goto error;
-
-	for (i = 0; i < conn->numChannels; i++)
-	{
-		mcs_send_cjrq(conn, conn->channels[i].mcs_id);
-		if (!mcs_recv_cjcf(conn))
-			goto error;
-	}
-	return True;
-
-      error:
-	iso_disconnect(conn);
-	return False;
-}
-
 /* Disconnect from the MCS layer */
 void
-mcs_disconnect(RDConnectionRef conn)
+mcs_disconnect(rdcConnection conn)
 {
 	iso_disconnect(conn);
-}
-
-/* reset the state of the mcs layer */
-void
-mcs_reset_state(RDConnectionRef conn)
-{
-	conn->mcsUserid = 0;
-	iso_reset_state(conn);
 }

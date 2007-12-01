@@ -23,7 +23,7 @@
 #import <unistd.h>
 #import "rdesktop.h"
 
-#import "CRDSessionView.h"
+#import "RDCView.h"
 
 #ifdef HAVE_ICONV
 #ifdef HAVE_ICONV_H
@@ -36,10 +36,10 @@
 #endif
 
 /* Receive an RDP packet */
-RDStreamRef
-rdp_recv(RDConnectionRef conn, uint8 * type)
+STREAM
+rdp_recv(rdcConnection conn, uint8 * type)
 {
-	RDStreamRef rdp_s = conn->rdpStream;
+	STREAM rdp_s = conn->rdpStream;
 	uint16 length, pdu_type;
 	uint8 rdpver;
 
@@ -81,15 +81,20 @@ rdp_recv(RDConnectionRef conn, uint8 * type)
 	in_uint8s(rdp_s, 2);	/* userid */
 	*type = pdu_type & 0xf;
 
+#if WITH_DEBUG
+	DEBUG(("RDP packet #%d, (type %x)\n", ++conn->packetNumber, *type));
+	hexdump(conn->nextPacket, length);
+#endif /*  */
+
 	conn->nextPacket += length;
 	return rdp_s;
 }
 
 /* Initialise an RDP data packet */
-static RDStreamRef
-rdp_init_data(RDConnectionRef conn, int maxlen)
+static STREAM
+rdp_init_data(rdcConnection conn, int maxlen)
 {
-	RDStreamRef s;
+	STREAM s;
 
 	s = sec_init(conn, conn->useEncryption ? SEC_ENCRYPT : 0, maxlen + 18);
 	s_push_layer(s, rdp_hdr, 18);
@@ -99,7 +104,7 @@ rdp_init_data(RDConnectionRef conn, int maxlen)
 
 /* Send an RDP data packet */
 static void
-rdp_send_data(RDConnectionRef conn, RDStreamRef s, uint8 data_pdu_type)
+rdp_send_data(rdcConnection conn, STREAM s, uint8 data_pdu_type)
 {
 	uint16 length;
 
@@ -123,7 +128,7 @@ rdp_send_data(RDConnectionRef conn, RDStreamRef s, uint8 data_pdu_type)
 
 /* Output a string in Unicode */
 void
-rdp_out_unistr(RDStreamRef s, const char *string, int len)
+rdp_out_unistr(STREAM s, const char *string, int len)
 {
 	{
 		int i = 0, j = 0;
@@ -145,7 +150,7 @@ rdp_out_unistr(RDStreamRef s, const char *string, int len)
  * Returns str_len of string
  */
 int
-rdp_in_unistr(RDStreamRef s, char *string, int uni_len)
+rdp_in_unistr(STREAM s, char *string, int uni_len)
 {
 	{
 		int i = 0;
@@ -163,7 +168,7 @@ rdp_in_unistr(RDStreamRef s, char *string, int uni_len)
 
 /* Parse a logon info packet */
 static void
-rdp_send_logon_info(RDConnectionRef conn, uint32 flags, const char *domain, char *user,
+rdp_send_logon_info(rdcConnection conn, uint32 flags, const char *domain, char *user,
 		    const char *password, const char *program, const char *directory)
 {
 	char *ipaddr = tcp_get_address(conn);
@@ -176,7 +181,7 @@ rdp_send_logon_info(RDConnectionRef conn, uint32 flags, const char *domain, char
 	int len_dll = 2 * strlen("C:\\WINNT\\System32\\mstscax.dll");
 	int packetlen = 0;
 	uint32 sec_flags = conn->useEncryption ? (SEC_LOGON_INFO | SEC_ENCRYPT) : SEC_LOGON_INFO;
-	RDStreamRef s;
+	STREAM s;
 	time_t t = time(NULL);
 	time_t tzone;
 
@@ -315,9 +320,9 @@ rdp_send_logon_info(RDConnectionRef conn, uint32 flags, const char *domain, char
 
 /* Send a control PDU */
 static void
-rdp_send_control(RDConnectionRef conn, uint16 action)
+rdp_send_control(rdcConnection conn, uint16 action)
 {
-	RDStreamRef s;
+	STREAM s;
 
 	s = rdp_init_data(conn, 8);
 
@@ -331,9 +336,9 @@ rdp_send_control(RDConnectionRef conn, uint16 action)
 
 /* Send a synchronisation PDU */
 static void
-rdp_send_synchronise(RDConnectionRef conn)
+rdp_send_synchronise(rdcConnection conn)
 {
-	RDStreamRef s;
+	STREAM s;
 
 	s = rdp_init_data(conn, 4);
 
@@ -346,9 +351,9 @@ rdp_send_synchronise(RDConnectionRef conn)
 
 /* Send a single input event */
 void
-rdp_send_input(RDConnectionRef conn, uint32 time, uint16 message_type, uint16 device_flags, uint16 param1, uint16 param2)
+rdp_send_input(rdcConnection conn, uint32 time, uint16 message_type, uint16 device_flags, uint16 param1, uint16 param2)
 {
-	RDStreamRef s;
+	STREAM s;
 
 	s = rdp_init_data(conn, 16);
 
@@ -367,9 +372,9 @@ rdp_send_input(RDConnectionRef conn, uint32 time, uint16 message_type, uint16 de
 
 /* Send a client window information PDU */
 void
-rdp_send_client_window_status(RDConnectionRef conn, int status)
+rdp_send_client_window_status(rdcConnection conn, int status)
 {
-   RDStreamRef s;
+   STREAM s;
 
    if (conn->currentStatus == status)
        return;
@@ -391,16 +396,18 @@ rdp_send_client_window_status(RDConnectionRef conn, int status)
    }
 
    s_mark_end(s);
+   
+#define RDP_DATA_PDU_CLIENT_WINDOW_STATUS 35
    rdp_send_data(conn, s, RDP_DATA_PDU_CLIENT_WINDOW_STATUS);
    conn->currentStatus = status;
 }
 
 /* Inform the server on the contents of the persistent bitmap cache */
 static void
-rdp_enum_bmpcache2(RDConnectionRef conn)
+rdp_enum_bmpcache2(rdcConnection conn)
 {
-	RDStreamRef s;
-	RDHashKey keylist[BMPCACHE2_NUM_PSTCELLS];
+	STREAM s;
+	HASH_KEY keylist[BMPCACHE2_NUM_PSTCELLS];
 	uint32 num_keys, offset, count, flags;
 
 	offset = 0;
@@ -410,7 +417,7 @@ rdp_enum_bmpcache2(RDConnectionRef conn)
 	{
 		count = MIN(num_keys - offset, 169);
 
-		s = rdp_init_data(conn, 24 + count * sizeof(RDHashKey));
+		s = rdp_init_data(conn, 24 + count * sizeof(HASH_KEY));
 
 		flags = 0;
 		if (offset == 0)
@@ -430,7 +437,7 @@ rdp_enum_bmpcache2(RDConnectionRef conn)
 		out_uint32_le(s, flags);
 
 		/* list */
-		out_uint8a(s, keylist[offset], count * sizeof(RDHashKey));
+		out_uint8a(s, keylist[offset], count * sizeof(HASH_KEY));
 
 		s_mark_end(s);
 		rdp_send_data(conn, s, 0x2b);
@@ -441,9 +448,9 @@ rdp_enum_bmpcache2(RDConnectionRef conn)
 
 /* Send an (empty) font information PDU */
 static void
-rdp_send_fonts(RDConnectionRef conn, uint16 seq)
+rdp_send_fonts(rdcConnection conn, uint16 seq)
 {
-	RDStreamRef s;
+	STREAM s;
 
 	s = rdp_init_data(conn, 8);
 
@@ -458,7 +465,7 @@ rdp_send_fonts(RDConnectionRef conn, uint16 seq)
 
 /* Output general capability set */
 static void
-rdp_out_general_caps(RDConnectionRef conn, RDStreamRef s)
+rdp_out_general_caps(rdcConnection conn, STREAM s)
 {
 	out_uint16_le(s, RDP_CAPSET_GENERAL);
 	out_uint16_le(s, RDP_CAPLEN_GENERAL);
@@ -484,7 +491,7 @@ rdp_out_general_caps(RDConnectionRef conn, RDStreamRef s)
 
 /* Output bitmap capability set */
 static void
-rdp_out_bitmap_caps(RDConnectionRef conn, RDStreamRef s)
+rdp_out_bitmap_caps(rdcConnection conn, STREAM s)
 {
 	out_uint16_le(s, RDP_CAPSET_BITMAP);
 	out_uint16_le(s, RDP_CAPLEN_BITMAP);
@@ -505,7 +512,7 @@ rdp_out_bitmap_caps(RDConnectionRef conn, RDStreamRef s)
 
 /* Output order capability set */
 static void
-rdp_out_order_caps(RDConnectionRef conn, RDStreamRef s)
+rdp_out_order_caps(rdcConnection conn, STREAM s)
 {
 	uint8 order_caps[32];
 
@@ -540,14 +547,14 @@ rdp_out_order_caps(RDConnectionRef conn, RDStreamRef s)
 	out_uint8p(s, order_caps, 32);	/* Orders supported */
 	out_uint16_le(s, 0x6a1);	/* Text capability flags */
 	out_uint8s(s, 6);	/* Pad */
-	out_uint32_le(s, conn->desktopSave == False ? 0 : DESKTOP_CACHE_SIZE);	/* Desktop cache size */
+	out_uint32_le(s, conn->desktopSave == False ? 0 : 0x38400);	/* Desktop cache size */
 	out_uint32(s, 0);	/* Unknown */
 	out_uint32_le(s, 0x4e4);	/* Unknown */
 }
 
 /* Output bitmap cache capability set */
 static void
-rdp_out_bmpcache_caps(RDConnectionRef conn, RDStreamRef s)
+rdp_out_bmpcache_caps(rdcConnection conn, STREAM s)
 {
 	int Bpp;
 	out_uint16_le(s, RDP_CAPSET_BMPCACHE);
@@ -565,7 +572,7 @@ rdp_out_bmpcache_caps(RDConnectionRef conn, RDStreamRef s)
 
 /* Output bitmap cache v2 capability set */
 static void
-rdp_out_bmpcache2_caps(RDConnectionRef conn, RDStreamRef s)
+rdp_out_bmpcache2_caps(rdcConnection conn, STREAM s)
 {
 	out_uint16_le(s, RDP_CAPSET_BMPCACHE2);
 	out_uint16_le(s, RDP_CAPLEN_BMPCACHE2);
@@ -590,7 +597,7 @@ rdp_out_bmpcache2_caps(RDConnectionRef conn, RDStreamRef s)
 
 /* Output control capability set */
 static void
-rdp_out_control_caps(RDStreamRef s)
+rdp_out_control_caps(STREAM s)
 {
 	out_uint16_le(s, RDP_CAPSET_CONTROL);
 	out_uint16_le(s, RDP_CAPLEN_CONTROL);
@@ -603,7 +610,7 @@ rdp_out_control_caps(RDStreamRef s)
 
 /* Output activation capability set */
 static void
-rdp_out_activate_caps(RDStreamRef s)
+rdp_out_activate_caps(STREAM s)
 {
 	out_uint16_le(s, RDP_CAPSET_ACTIVATE);
 	out_uint16_le(s, RDP_CAPLEN_ACTIVATE);
@@ -616,7 +623,7 @@ rdp_out_activate_caps(RDStreamRef s)
 
 /* Output pointer capability set */
 static void
-rdp_out_pointer_caps(RDStreamRef s)
+rdp_out_pointer_caps(STREAM s)
 {
 	out_uint16_le(s, RDP_CAPSET_POINTER);
 	out_uint16_le(s, RDP_CAPLEN_POINTER);
@@ -627,7 +634,7 @@ rdp_out_pointer_caps(RDStreamRef s)
 
 /* Output share capability set */
 static void
-rdp_out_share_caps(RDStreamRef s)
+rdp_out_share_caps(STREAM s)
 {
 	out_uint16_le(s, RDP_CAPSET_SHARE);
 	out_uint16_le(s, RDP_CAPLEN_SHARE);
@@ -638,7 +645,7 @@ rdp_out_share_caps(RDStreamRef s)
 
 /* Output colour cache capability set */
 static void
-rdp_out_colcache_caps(RDStreamRef s)
+rdp_out_colcache_caps(STREAM s)
 {
 	out_uint16_le(s, RDP_CAPSET_COLCACHE);
 	out_uint16_le(s, RDP_CAPLEN_COLCACHE);
@@ -676,7 +683,7 @@ static const uint8 caps_0x10[] = {
 
 /* Output unknown capability sets */
 static void
-rdp_out_unknown_caps(RDStreamRef s, uint16 id, uint16 length, const uint8 * caps)
+rdp_out_unknown_caps(STREAM s, uint16 id, uint16 length, const uint8 * caps)
 {
 	out_uint16_le(s, id);
 	out_uint16_le(s, length);
@@ -687,9 +694,9 @@ rdp_out_unknown_caps(RDStreamRef s, uint16 id, uint16 length, const uint8 * caps
 #define RDP5_FLAG 0x0030
 /* Send a confirm active PDU */
 static void
-rdp_send_confirm_active(RDConnectionRef conn)
+rdp_send_confirm_active(rdcConnection conn)
 {
-	RDStreamRef s;
+	STREAM s;
 	uint32 sec_flags = conn->useEncryption ? (RDP5_FLAG | SEC_ENCRYPT) : RDP5_FLAG;
 	uint16 caplen =
 		RDP_CAPLEN_GENERAL + RDP_CAPLEN_BITMAP + RDP_CAPLEN_ORDER +
@@ -735,7 +742,7 @@ rdp_send_confirm_active(RDConnectionRef conn)
 
 /* Process a general capability set */
 static void
-rdp_process_general_caps(RDConnectionRef conn, RDStreamRef s)
+rdp_process_general_caps(rdcConnection conn, STREAM s)
 {
 	uint16 pad2octetsB;	/* rdp5 flags? */
 
@@ -748,7 +755,7 @@ rdp_process_general_caps(RDConnectionRef conn, RDStreamRef s)
 
 /* Process a bitmap capability set */
 static void
-rdp_process_bitmap_caps(RDConnectionRef conn, RDStreamRef s)
+rdp_process_bitmap_caps(rdcConnection conn, STREAM s)
 {
 	uint16 width, height, bpp;
 
@@ -766,7 +773,7 @@ rdp_process_bitmap_caps(RDConnectionRef conn, RDStreamRef s)
 	 */
 	if (conn->serverBpp != bpp)
 	{
-		CRDSessionView *view = conn->ui;
+		RDCView *view = conn->ui;
 		warning("colour depth changed from %d to %d\n", conn->serverBpp, bpp);
 		[view setBitdepth:bpp];
 		conn->serverBpp = bpp;
@@ -777,13 +784,13 @@ rdp_process_bitmap_caps(RDConnectionRef conn, RDStreamRef s)
 			width, height);
 		conn->screenWidth = width;
 		conn->screenHeight = height;
-		ui_resize_window(conn);
+		ui_resize_window();
 	}
 }
 
 /* Process server capabilities */
 void
-rdp_process_server_caps(RDConnectionRef conn, RDStreamRef s, uint16 length)
+rdp_process_server_caps(rdcConnection conn, STREAM s, uint16 length)
 {
 	int n;
 	uint8 *next, *start;
@@ -819,9 +826,9 @@ rdp_process_server_caps(RDConnectionRef conn, RDStreamRef s, uint16 length)
 	}
 }
 
-/* Respond to a  */
+/* Respond to a demand active PDU */
 void
-process_demand_active(RDConnectionRef conn, RDStreamRef s)
+process_demand_active(rdcConnection conn, STREAM s)
 {
 	uint8 type;
 	uint16 len_src_descriptor, len_combined_caps;
@@ -860,11 +867,11 @@ process_demand_active(RDConnectionRef conn, RDStreamRef s)
 
 /* Process a colour pointer PDU */
 void
-process_colour_pointer_pdu(RDConnectionRef conn, RDStreamRef s)
+process_colour_pointer_pdu(rdcConnection conn, STREAM s)
 {
 	uint16 x, y, width, height, cache_idx, masklen, datalen;
 	uint8 *mask, *data;
-	RDCursorRef cursor;
+	HCURSOR cursor;
 
 	in_uint16_le(s, cache_idx);
 	in_uint16_le(s, x);
@@ -882,7 +889,7 @@ process_colour_pointer_pdu(RDConnectionRef conn, RDStreamRef s)
 
 /* Process a cached pointer PDU */
 void
-process_cached_pointer_pdu(RDConnectionRef conn, RDStreamRef s)
+process_cached_pointer_pdu(rdcConnection conn, STREAM s)
 {
 	uint16 cache_idx;
 
@@ -892,7 +899,7 @@ process_cached_pointer_pdu(RDConnectionRef conn, RDStreamRef s)
 
 /* Process a system pointer PDU */
 void
-process_system_pointer_pdu(RDConnectionRef conn, RDStreamRef s)
+process_system_pointer_pdu(rdcConnection conn, STREAM s)
 {
 	uint16 system_pointer_type;
 
@@ -910,7 +917,7 @@ process_system_pointer_pdu(RDConnectionRef conn, RDStreamRef s)
 
 /* Process a pointer PDU */
 static void
-process_pointer_pdu(RDConnectionRef conn, RDStreamRef s)
+process_pointer_pdu(rdcConnection conn, STREAM s)
 {
 	uint16 message_type;
 	uint16 x, y;
@@ -924,7 +931,7 @@ process_pointer_pdu(RDConnectionRef conn, RDStreamRef s)
 			in_uint16_le(s, x);
 			in_uint16_le(s, y);
 			if (s_check(s))
-				ui_move_pointer(conn, x, y);
+				ui_move_pointer(x, y);
 			break;
 
 		case RDP_POINTER_COLOR:
@@ -946,7 +953,7 @@ process_pointer_pdu(RDConnectionRef conn, RDStreamRef s)
 
 /* Process bitmap updates */
 void
-process_bitmap_updates(RDConnectionRef conn, RDStreamRef s)
+process_bitmap_updates(rdcConnection conn, STREAM s)
 {
 	uint16 num_updates;
 	uint16 left, top, right, bottom, width, height;
@@ -1017,18 +1024,18 @@ process_bitmap_updates(RDConnectionRef conn, RDStreamRef s)
 
 /* Process a palette update */
 void
-process_palette(RDConnectionRef conn, RDStreamRef s)
+process_palette(rdcConnection conn, STREAM s)
 {
-	RDColorEntry *entry;
-	RDColorMap map;
-	RDColorMapRef hmap;
+	COLOURENTRY *entry;
+	COLOURMAP map;
+	HCOLOURMAP hmap;
 	int i;
 
 	in_uint8s(s, 2);	/* pad */
 	in_uint16_le(s, map.ncolours);
 	in_uint8s(s, 2);	/* pad */
 
-	map.colours = (RDColorEntry *) xmalloc(sizeof(RDColorEntry) * map.ncolours);
+	map.colours = (COLOURENTRY *) xmalloc(sizeof(COLOURENTRY) * map.ncolours);
 
 	DEBUG(("PALETTE(c=%d)\n", map.ncolours));
 
@@ -1048,14 +1055,12 @@ process_palette(RDConnectionRef conn, RDStreamRef s)
 
 /* Process an update PDU */
 static void
-process_update_pdu(RDConnectionRef conn, RDStreamRef s)
+process_update_pdu(rdcConnection conn, STREAM s)
 {
 	uint16 update_type, count;
 
 	in_uint16_le(s, update_type);
-	
-	ui_begin_update(conn);
-	
+
 	switch (update_type)
 	{
 		case RDP_UPDATE_ORDERS:
@@ -1079,13 +1084,11 @@ process_update_pdu(RDConnectionRef conn, RDStreamRef s)
 		default:
 			unimpl("update %d\n", update_type);
 	}
-	
-	ui_end_update(conn);
 }
 
 /* Process a disconnect PDU */
 void
-process_disconnect_pdu(RDConnectionRef conn, RDStreamRef s, uint32 * ext_disc_reason)
+process_disconnect_pdu(STREAM s, uint32 * ext_disc_reason)
 {
 	in_uint32_le(s, *ext_disc_reason);
 
@@ -1093,8 +1096,8 @@ process_disconnect_pdu(RDConnectionRef conn, RDStreamRef s, uint32 * ext_disc_re
 }
 
 /* Process data PDU */
-RDBOOL
-process_data_pdu(RDConnectionRef conn, RDStreamRef s, uint32 * ext_disc_reason)
+RDCBOOL
+process_data_pdu(rdcConnection conn, STREAM s, uint32 * ext_disc_reason)
 {
 	uint8 data_pdu_type;
 	uint8 ctype;
@@ -1103,7 +1106,7 @@ process_data_pdu(RDConnectionRef conn, RDStreamRef s, uint32 * ext_disc_reason)
 
 	uint32 roff, rlen;
 
-	RDStream *ns = &(conn->mppcDict.ns);
+	struct stream *ns = &(conn->mppcDict.ns);
 
 	in_uint8s(s, 6);	/* shareid, pad, streamid */
 	in_uint16(s, len);
@@ -1163,7 +1166,7 @@ process_data_pdu(RDConnectionRef conn, RDStreamRef s, uint32 * ext_disc_reason)
 			break;
 
 		case RDP_DATA_PDU_DISCONNECT:
-			process_disconnect_pdu(conn, s, ext_disc_reason);
+			process_disconnect_pdu(s, ext_disc_reason);
 
          /* We used to return true and disconnect immediately here, but
             * Windows Vista sends a disconnect PDU with reason 0 when
@@ -1178,57 +1181,9 @@ process_data_pdu(RDConnectionRef conn, RDStreamRef s, uint32 * ext_disc_reason)
 	return False;
 }
 
-/* Process redirect PDU from Session Directory */
-RDBOOL
-process_redirect_pdu(RDConnectionRef conn, RDStreamRef s /*, uint32 * ext_disc_reason */ )
-{
-	uint32 len;
-
-	/* these 2 bytes are unknown, seem to be zeros */
-	in_uint8s(s, 2);
-
-	/* read connection flags */
-	in_uint32_le(s, conn->sessionDirFlags);
-
-	/* read length of ip string */
-	in_uint32_le(s, len);
-
-	/* read ip string */
-	rdp_in_unistr(s, conn->sessionDirServer, len);
-
-	/* read length of cookie string */
-	in_uint32_le(s, len);
-
-	/* read cookie string (plain ASCII) */
-	in_uint8a(s, conn->sessionDirCookie, len);
-	conn->sessionDirCookie[len] = '\0';
-
-	/* read length of username string */
-	in_uint32_le(s, len);
-
-	/* read username string */
-	rdp_in_unistr(s, conn->sessionDirUsername, len);
-
-	/* read length of domain string */
-	in_uint32_le(s, len);
-
-	/* read domain string */
-	rdp_in_unistr(s, conn->sessionDirDomain, len);
-
-	/* read length of password string */
-	in_uint32_le(s, len);
-
-	/* read password string */
-	rdp_in_unistr(s, conn->sessionDirPassword, len);
-
-	conn->sessionDirRedirect = True;
-
-	return True;
-}
-
 /* Establish a connection up to the RDP layer */
-RDBOOL
-rdp_connect(RDConnectionRef conn, const char *server, uint32 flags, const char *domain, const char *password,
+RDCBOOL
+rdp_connect(rdcConnection conn, const char *server, uint32 flags, const char *domain, const char *password,
 	    const char *command, const char *directory)
 {
 	if (!sec_connect(conn, server, conn->username))
@@ -1239,28 +1194,20 @@ rdp_connect(RDConnectionRef conn, const char *server, uint32 flags, const char *
 }
 
 /* Establish a reconnection up to the RDP layer */
-RDBOOL
-rdp_reconnect(RDConnectionRef conn, const char *server, uint32 flags, const char *domain, const char *password, const char *command, const char *directory, char *cookie)
+/* RDCBOOL
+rdp_reconnect(rdcConnection conn, const char *server, uint32 flags, const char *domain, const char *password,
+			const char *command, const char *directory, char *cookie)
 {
-	if (!sec_reconnect(conn, (char *)server))
+	if (!sec_reconnect(conn, server))
 		return False;
 	
 	rdp_send_logon_info(conn, flags, domain, conn->username, password, command, directory);
 	return True;
-} 
-
-/* Called during redirection to reset the state to support redirection */
-void
-rdp_reset_state(RDConnectionRef conn)
-{
-	conn->nextPacket = NULL;	/* reset the packet information */
-	conn->shareID = 0;
-	sec_reset_state(conn);
-}
+} */
 
 /* Disconnect from the RDP layer */
 void
-rdp_disconnect(RDConnectionRef conn)
+rdp_disconnect(rdcConnection conn)
 {
 	sec_disconnect(conn);
 }

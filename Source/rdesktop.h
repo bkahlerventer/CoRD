@@ -1,4 +1,4 @@
- /*
+/*
    rdesktop: A Remote Desktop Protocol client.
    Master include file
    Copyright (C) Matthew Chapman 1999-2005
@@ -23,86 +23,68 @@
 #import <string.h>
 #import <dirent.h>
 #import <sys/time.h>
+#import <dirent.h>
+#ifdef HAVE_SYS_SELECT_H
 #import <sys/select.h>
-#import <unistd.h>
-#include <limits.h>		/* PATH_MAX */
-
-#import <openssl/md5.h>
-#import <openssl/sha.h>
-#import <openssl/bn.h>
-#import <openssl/x509v3.h>
-#import <openssl/rc4.h>
-
-#define VERSION "1.5.0"
-
-//#define WITH_DEBUG 1
-#ifdef WITH_DEBUG
-	#define DEBUG(args)	printf args;
 #else
-	#define DEBUG(args)
+#import <sys/types.h>
+#import <unistd.h>
 #endif
 
-//#define WITH_DEBUG_RDP5 1
-#ifdef WITH_DEBUG_RDP5
-	#define DEBUG_RDP5(args) printf args;
+#define VERSION "1.4.1"
+
+#ifdef WITH_DEBUG
+#define DEBUG(args)	printf args;
 #else
-	#define DEBUG_RDP5(args)
+#define DEBUG(args)
+#endif
+
+#ifdef WITH_DEBUG_RDP5
+#define DEBUG_RDP5(args) printf args;
+#else
+#define DEBUG_RDP5(args)
 #endif
 
 //#define WITH_DEBUG_CLIPBOARD
 #ifdef WITH_DEBUG_CLIPBOARD
-	#define DEBUG_CLIPBOARD(args) printf args;
+#define DEBUG_CLIPBOARD(args) printf args;
 #else
-	#define DEBUG_CLIPBOARD(args)
-#endif
-
-//#define WITH_DEBUG_CHANNEL
-#ifdef WITH_DEBUG_CHANNEL
-	#define DEBUG_CHANNEL(args) printf args;
-#else
-	#define DEBUG_CHANNEL(args)
+#define DEBUG_CLIPBOARD(args)
 #endif
 
 #define STRNCPY(dst,src,n)	{ strncpy(dst,src,n-1); dst[n-1] = 0; }
 
 #ifndef MIN
-	#define MIN(x,y)		(((x) < (y)) ? (x) : (y))
+#define MIN(x,y)		(((x) < (y)) ? (x) : (y))
 #endif
 
 #ifndef MAX
-	#define MAX(x,y)		(((x) > (y)) ? (x) : (y))
+#define MAX(x,y)		(((x) > (y)) ? (x) : (y))
 #endif
 
-/* timeval macros */
-#ifndef timerisset
-	#define timerisset(tvp)\
-         ((tvp)->tv_sec || (tvp)->tv_usec)
+/* If configure does not define the endianess, try
+   to find it out */
+#if !defined(L_ENDIAN) && !defined(B_ENDIAN)
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+#define L_ENDIAN
+#elif __BYTE_ORDER == __BIG_ENDIAN
+#define B_ENDIAN
+#else
+#error Unknown endianness. Edit rdesktop.h.
 #endif
-#ifndef timercmp
-	#define timercmp(tvp, uvp, cmp)\
-			((tvp)->tv_sec cmp (uvp)->tv_sec ||\
-			(tvp)->tv_sec == (uvp)->tv_sec &&\
-			(tvp)->tv_usec cmp (uvp)->tv_usec)
+#endif /* B_ENDIAN, L_ENDIAN from configure */
+
+/* No need for alignment on x86 and amd64 */
+#if !defined(NEED_ALIGN)
+#if !(defined(__x86__) || defined(__x86_64__) || \
+      defined(__AMD64__) || defined(_M_IX86) || \
+      defined(__i386__))
+#define NEED_ALIGN
 #endif
-#ifndef timerclear
-	#define timerclear(tvp)\
-			((tvp)->tv_sec = (tvp)->tv_usec = 0)
 #endif
 
-#ifdef __LITTLE_ENDIAN__
-	#define L_ENDIAN
-#elif defined(__BIG_ENDIAN__)
-	#define B_ENDIAN
-#endif
-
-
-// Alignment is needed on PPC, but not x86
-#ifndef __i386__
-	#define NEED_ALIGN
-#endif
-
-#import "constants.h"
 #import "parse.h"
+#import "constants.h"
 #import "types.h"
 #import "proto.h"
 

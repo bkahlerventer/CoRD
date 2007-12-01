@@ -23,9 +23,9 @@
 
 /* Send a self-contained ISO PDU */
 static void
-iso_send_msg(RDConnectionRef conn, uint8 code)
+iso_send_msg(rdcConnection conn, uint8 code)
 {
-	RDStreamRef s;
+	STREAM s;
 
 	s = tcp_init(conn, 11);
 
@@ -44,9 +44,9 @@ iso_send_msg(RDConnectionRef conn, uint8 code)
 }
 
 static void
-iso_send_connection_request(RDConnectionRef conn, char *username)
+iso_send_connection_request(rdcConnection conn, char *username)
 {
-	RDStreamRef s;
+	STREAM s;
 	int length = 30 + strlen(username);
 
 	s = tcp_init(conn, length);
@@ -72,10 +72,10 @@ iso_send_connection_request(RDConnectionRef conn, char *username)
 }
 
 /* Receive a message on the ISO layer, return code */
-static RDStreamRef
-iso_recv_msg(RDConnectionRef conn, uint8 * code, uint8 * rdpver)
+static STREAM
+iso_recv_msg(rdcConnection conn, uint8 * code, uint8 * rdpver)
 {
-	RDStreamRef s;
+	STREAM s;
 	uint16 length;
 	uint8 version;
 
@@ -116,10 +116,10 @@ iso_recv_msg(RDConnectionRef conn, uint8 * code, uint8 * rdpver)
 }
 
 /* Initialise ISO transport data packet */
-RDStreamRef
-iso_init(RDConnectionRef conn, int length)
+STREAM
+iso_init(rdcConnection conn, int length)
 {
-	RDStreamRef s;
+	STREAM s;
 
 	s = tcp_init(conn, length + 7);
 	s_push_layer(s, iso_hdr, 7);
@@ -129,7 +129,7 @@ iso_init(RDConnectionRef conn, int length)
 
 /* Send an ISO data PDU */
 void
-iso_send(RDConnectionRef conn, RDStreamRef s)
+iso_send(rdcConnection conn, STREAM s)
 {
 	uint16 length;
 
@@ -148,10 +148,10 @@ iso_send(RDConnectionRef conn, RDStreamRef s)
 }
 
 /* Receive ISO transport data packet */
-RDStreamRef
-iso_recv(RDConnectionRef conn, uint8 * rdpver)
+STREAM
+iso_recv(rdcConnection conn, uint8 * rdpver)
 {
-	RDStreamRef s;
+	STREAM s;
 	uint8 code = 0;
 
 	s = iso_recv_msg(conn, &code, rdpver);
@@ -169,8 +169,8 @@ iso_recv(RDConnectionRef conn, uint8 * rdpver)
 }
 
 /* Establish a connection up to the ISO layer */
-RDBOOL
-iso_connect(RDConnectionRef conn, const char *server, char *username)
+RDCBOOL
+iso_connect(rdcConnection conn, const char *server, char *username)
 {
 	uint8 code = 0;
 
@@ -194,41 +194,10 @@ iso_connect(RDConnectionRef conn, const char *server, char *username)
 	return True;
 }
 
-/* Establish a reconnection up to the ISO layer */
-RDBOOL
-iso_reconnect(RDConnectionRef conn, char *server)
-{
-	uint8 code = 0;
-
-	if (!tcp_connect(conn, server))
-		return False;
-
-	iso_send_msg(conn, ISO_PDU_CR);
-
-	if (iso_recv_msg(conn, &code, NULL) == NULL)
-		return False;
-
-	if (code != ISO_PDU_CC)
-	{
-		error("expected CC, got 0x%x\n", code);
-		tcp_disconnect(conn);
-		return False;
-	}
-
-	return True;
-}
-
 /* Disconnect from the ISO layer */
 void
-iso_disconnect(RDConnectionRef conn)
+iso_disconnect(rdcConnection conn)
 {
 	iso_send_msg(conn, ISO_PDU_DR);
 	tcp_disconnect(conn);
-}
-
-/* reset the state to support reconnecting */
-void
-iso_reset_state(RDConnectionRef conn)
-{
-	tcp_reset_state(conn);
 }

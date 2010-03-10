@@ -1,0 +1,36 @@
+/*	Copyright (c) 2010 Nick Peelman <nick@peelman.us>
+	
+	This file is part of CoRD.
+	CoRD is free software; you can redistribute it and/or modify it under the
+	terms of the GNU General Public License as published by the Free Software
+	Foundation; either version 2 of the License, or (at your option) any later
+	version.
+
+	CoRD is distributed in the hope that it will be useful, but WITHOUT ANY
+	WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+	FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License along with
+	CoRD; if not, write to the Free Software Foundation, Inc., 51 Franklin St,
+	Fifth Floor, Boston, MA 02110-1301 USA
+*/
+
+#include <CoreFoundation/CoreFoundation.h>
+#include <CoreServices/CoreServices.h>
+#include <QuickLook/QuickLook.h>
+
+/* -----------------------------------------------------------------------------
+    Generate a thumbnail for file
+
+   This function's job is to create thumbnail for designated file as fast as possible
+   ----------------------------------------------------------------------------- */
+
+OSStatus GenerateThumbnailForURL(void *thisInterface, QLThumbnailRequestRef thumbnail, CFURLRef url, CFStringRef contentTypeUTI, CFDictionaryRef options, CGSize maxSize)
+{
+    return noErr;
+}
+
+void CancelThumbnailGeneration(void* thisInterface, QLThumbnailRequestRef thumbnail)
+{
+    // implement only if supported
+}
